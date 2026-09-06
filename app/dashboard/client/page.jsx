@@ -1,65 +1,130 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession } from "@/utils/auth-client";
+import { useRouter } from "next/navigation";
 import { useRoleRedirect } from "@/hooks/useRoleRedirect";
 
-export default function ClientDashboard() {
+export default function ManageProposalsPage() {
   const { session } = useRoleRedirect(["client"]);
-  const [stats, setStats] = useState({
-    totalTasks: 0,
-    openTasks: 0,
-    inProgressTasks: 0,
-    totalSpent: 0,
-    tasks: []
-  });
+  const router = useRouter();
+  const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  const fetchProposals = async () => {
+    if (!session?.user?.email) return;
+    try {
+      const res = await fetch(`${API_URL}/api/tasks/client-proposals?email=${session.user.email}`);
+      const data = await res.json();
+      setProposals(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load proposals:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (session?.user?.email) {
-      fetch(`http://localhost:5000/api/tasks/client-stats?email=${session.user.email}`)
-        .then((res) => res.json())
-        .then((data) => {
-          setStats(data);
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error("Failed to fetch client stats:", err);
-          setLoading(false);
-        });
-    }
+    fetchProposals();
   }, [session]);
 
-  if (loading) {
-    return <div className="flex min-h-screen items-center justify-center">Loading dashboard...</div>;
-  }
+  const handleReject = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/api/tasks/proposals/${id}/reject`, { method: "PATCH" });
+      const data = await res.json();
+      if (data.success) {
+        setProposals(proposals.map(p => p._id === id ? { ...p, status: "rejected" } : p));
+      }
+    } catch (err) {
+      setError("Failed to reject proposal.");
+    }
+  };
+
+  // ----------------------------------------------------
+  // Initiate Stripe Checkout session for accepted proposal
+  // ----------------------------------------------------
+  const handleAcceptCheckout = async (proposal) => {
+    try {
+      const response = await fetch(`${API_URL}/api/payments/create-checkout-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposalId: proposal._id,
+          taskId: proposal.taskId,
+          amount: proposal.budgetPrice || proposal.price || 0,
+          taskTitle: proposal.taskTitle,
+          freelancerEmail: proposal.freelancerEmail,
+          freelancerName: proposal.freelancerName,
+          clientEmail: session?.user?.email,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url; // Redirect to Stripe Checkout page
+      } else {
+        setError(data.error || "Failed to initiate payment gateway");
+      }
+    } catch (err) {
+      console.error("Checkout error:", err);
+      setError("Something went wrong with the payment gateway");
+    }
+  };
+
+  if (loading) return <div className="p-8 text-center text-gray-600">Loading proposals...</div>;
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Client Dashboard</h1>
-          <p className="text-gray-600">Welcome back, {session?.user?.name}</p>
-        </div>
+      <div className="mx-auto max-w-6xl">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Manage Job Proposals</h1>
 
-        {/* Statistics Grid */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
-            <p className="text-sm font-medium text-gray-500">Total Tasks</p>
-            <p className="mt-2 text-3xl font-semibold text-gray-900">{stats.totalTasks}</p>
-          </div>
-          <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
-            <p className="text-sm font-medium text-gray-500">Open Tasks</p>
-            <p className="mt-2 text-3xl font-semibold text-indigo-600">{stats.openTasks}</p>
-          </div>
-          <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
-            <p className="text-sm font-medium text-gray-500">Tasks In Progress</p>
-            <p className="mt-2 text-3xl font-semibold text-amber-600">{stats.inProgressTasks}</p>
-          </div>
-          <div className="rounded-xl bg-white p-6 shadow-sm border border-gray-100">
-            <p className="text-sm font-medium text-gray-500">Total Spent (USD)</p>
-            <p className="mt-2 text-3xl font-semibold text-emerald-600">${stats.totalSpent}</p>
-          </div>
+        {error && <div className="mb-4 rounded bg-red-100 p-3 text-sm text-red-700">{error}</div>}
+
+        <div className="space-y-4">
+          {proposals.length === 0 ? (
+            <div className="rounded-xl border border-gray-100 bg-white p-8 text-center text-gray-500">
+              No proposals submitted yet.
+            </div>
+          ) : (
+            proposals.map((item) => (
+              <div key={item._id} className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{item.freelancerName || "Applicant"}</h3>
+                    <p className="text-sm text-gray-500">Proposed Budget: ${item.budgetPrice || item.price} | Delivery: {item.completionDays} Days</p>
+                    <p className="mt-2 text-sm text-gray-700">{item.message}</p>
+                    <div className="mt-2">
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                        item.status === "accepted" ? "bg-green-100 text-green-800" :
+                        item.status === "rejected" ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"
+                      }`}>
+                        {item.status || "Pending"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {item.status !== "accepted" && item.status !== "rejected" && (
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleAcceptCheckout(item)}
+                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                      >
+                        Accept & Pay
+                      </button>
+                      <button
+                        onClick={() => handleReject(item._id)}
+                        className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
