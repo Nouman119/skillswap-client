@@ -180,7 +180,7 @@ export default function BrowseTasksPage() {
               <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-gray-400">Client</p>
-                  <p className="text-xs font-medium text-gray-700 truncate max-w-[120px]">
+                  <p className="text-xs font-medium text-gray-700 truncate max-w-30">
                     {task.clientName || task.clientEmail}
                   </p>
                 </div>
