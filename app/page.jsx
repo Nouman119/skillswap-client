@@ -57,7 +57,7 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Banner Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-indigo-50/50 via-white to-white py-20 lg:py-32">
+      <section className="relative overflow-hidden bg-linear-to-b from-indigo-50/50 via-white to-white py-20 lg:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
             Get your tasks done by <span className="text-indigo-600">skilled freelancers</span>
