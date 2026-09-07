@@ -1,127 +1,105 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { useRoleRedirect } from "@/hooks/useRoleRedirect";
+import { useAuth } from "@/context/AuthContext";
 
-export default function ManageProposalsPage() {
-  const { session } = useRoleRedirect(["client"]);
-  const router = useRouter();
-  const [proposals, setProposals] = useState([]);
+export default function ClientDashboardOverview() {
+  const { user } = useAuth();
+  const [stats, setStats] = useState({
+    totalTasks: 0,
+    openTasks: 0,
+    inProgressTasks: 0,
+    totalSpent: 0,
+  });
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-  const fetchProposals = async () => {
-    if (!session?.user?.email) return;
-    try {
-      const res = await fetch(`${API_URL}/api/tasks/client-proposals?email=${session.user.email}`);
-      const data = await res.json();
-      setProposals(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Failed to load proposals:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // ----------------------------------------------------
+  // Fetch client dashboard statistics and tasks from backend
+  // ----------------------------------------------------
   useEffect(() => {
-    fetchProposals();
-  }, [session]);
+    async function fetchClientDashboard() {
+      if (!user?.email) return;
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+        const res = await fetch(`${API_URL}/api/tasks/client-stats?email=${user.email}`);
+        const data = await res.json();
 
-  const handleReject = async (id) => {
-    try {
-      const res = await fetch(`${API_URL}/api/tasks/proposals/${id}/reject`, { method: "PATCH" });
-      const data = await res.json();
-      if (data.success) {
-        setProposals(proposals.map(p => p._id === id ? { ...p, status: "rejected" } : p));
+        if (res.ok) {
+          setStats({
+            totalTasks: data.totalTasks || 0,
+            openTasks: data.openTasks || 0,
+            inProgressTasks: data.inProgressTasks || 0,
+            totalSpent: data.totalSpent || 0,
+          });
+          setTasks(data.tasks || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch client dashboard data:", error);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError("Failed to reject proposal.");
     }
-  };
 
-  // ----------------------------------------------------
-  // Initiate Stripe Checkout session for accepted proposal
-  // ----------------------------------------------------
-  const handleAcceptCheckout = async (proposal) => {
-    try {
-      const response = await fetch(`${API_URL}/api/payments/create-checkout-session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          proposalId: proposal._id,
-          taskId: proposal.taskId,
-          amount: proposal.budgetPrice || proposal.price || 0,
-          taskTitle: proposal.taskTitle,
-          freelancerEmail: proposal.freelancerEmail,
-          freelancerName: proposal.freelancerName,
-          clientEmail: session?.user?.email,
-        }),
-      });
+    fetchClientDashboard();
+  }, [user]);
 
-      const data = await response.json();
-      if (data.url) {
-        window.location.href = data.url; // Redirect to Stripe Checkout page
-      } else {
-        setError(data.error || "Failed to initiate payment gateway");
-      }
-    } catch (err) {
-      console.error("Checkout error:", err);
-      setError("Something went wrong with the payment gateway");
-    }
-  };
-
-  if (loading) return <div className="p-8 text-center text-gray-600">Loading proposals...</div>;
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="mx-auto max-w-6xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Manage Job Proposals</h1>
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Client Dashboard Overview</h1>
+        <p className="mt-1 text-sm text-gray-500">Welcome back! Here is a summary of your posted tasks and spending.</p>
+      </div>
 
-        {error && <div className="mb-4 rounded bg-red-100 p-3 text-sm text-red-700">{error}</div>}
+      {/* Statistics Cards Grid */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-medium text-gray-500">Total Tasks</p>
+          <p className="mt-2 text-3xl font-bold text-gray-900">{stats.totalTasks}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-medium text-gray-500">Open Tasks</p>
+          <p className="mt-2 text-3xl font-bold text-indigo-600">{stats.openTasks}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-medium text-gray-500">Tasks In Progress</p>
+          <p className="mt-2 text-3xl font-bold text-amber-600">{stats.inProgressTasks}</p>
+        </div>
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-medium text-gray-500">Total Spent (USD)</p>
+          <p className="mt-2 text-3xl font-bold text-emerald-600">${stats.totalSpent}</p>
+        </div>
+      </div>
 
-        <div className="space-y-4">
-          {proposals.length === 0 ? (
-            <div className="rounded-xl border border-gray-100 bg-white p-8 text-center text-gray-500">
-              No proposals submitted yet.
-            </div>
+      {/* Recent Tasks Section */}
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-200 px-6 py-4">
+          <h3 className="text-lg font-semibold text-gray-900">Recent Posted Tasks</h3>
+        </div>
+        <div className="divide-y divide-gray-200">
+          {tasks.length === 0 ? (
+            <div className="p-6 text-center text-sm text-gray-500">No tasks posted yet.</div>
           ) : (
-            proposals.map((item) => (
-              <div key={item._id} className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-                <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">{item.freelancerName || "Applicant"}</h3>
-                    <p className="text-sm text-gray-500">Proposed Budget: ${item.budgetPrice || item.price} | Delivery: {item.completionDays} Days</p>
-                    <p className="mt-2 text-sm text-gray-700">{item.message}</p>
-                    <div className="mt-2">
-                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        item.status === "accepted" ? "bg-green-100 text-green-800" :
-                        item.status === "rejected" ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"
-                      }`}>
-                        {item.status || "Pending"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {item.status !== "accepted" && item.status !== "rejected" && (
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleAcceptCheckout(item)}
-                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                      >
-                        Accept & Pay
-                      </button>
-                      <button
-                        onClick={() => handleReject(item._id)}
-                        className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  )}
+            tasks.slice(0, 5).map((task) => (
+              <div key={task._id} className="flex items-center justify-between px-6 py-4">
+                <div>
+                  <h4 className="font-medium text-gray-900">{task.title}</h4>
+                  <p className="text-xs text-gray-500">Category: {task.category} • Budget: ${task.budget}</p>
                 </div>
+                <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  task.status === 'open' ? 'bg-indigo-50 text-indigo-700' : 
+                  task.status === 'in-progress' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+                }`}>
+                  {task.status}
+                </span>
               </div>
             ))
           )}

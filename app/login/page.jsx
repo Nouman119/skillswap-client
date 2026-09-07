@@ -3,43 +3,44 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { signIn, useSession } from "@/utils/auth-client";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session } = useSession();
+  const { user, setUser } = useAuth();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Role-based redirect function according to SECTION 06 specifications
+  // Role-based redirect function according to specifications
   const handleRoleRedirect = (userRole) => {
     if (userRole === "freelancer") {
-      router.push("/dashboard/freelancer"); // Freelancers go straight to dashboard
+      router.push("/dashboard/freelancer");
     } else if (userRole === "admin") {
-      router.push("/dashboard/admin"); // Admins go straight to dashboard
+      router.push("/dashboard/admin");
     } else {
-      router.push("/"); // Clients go to Home page
+      router.push("/dashboard/client");
     }
   };
 
-  // Sync Google user with backend database as Client
+  // Sync Google user with backend database safely
   useEffect(() => {
     const syncOAuthUser = async () => {
       const isOAuthSuccess = searchParams.get("oauth_success");
 
-      if (isOAuthSuccess && session?.user) {
+      if (isOAuthSuccess && user) {
         try {
-          await fetch("http://localhost:5000/api/users", {
+          const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+          await fetch(`${API_URL}/api/users`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              name: session.user.name,
-              email: session.user.email,
-              image: session.user.image || "",
-              role: "client", // Google OAuth users are always saved as Client
+              name: user.name || "Client User",
+              email: user.email,
+              image: user.image || "",
+              role: "client",
             }),
           });
           handleRoleRedirect("client");
@@ -50,7 +51,7 @@ export default function LoginPage() {
     };
 
     syncOAuthUser();
-  }, [session, searchParams]);
+  }, [user, searchParams]);
 
   // Handle email and password form submission
   const handleCredentialsLogin = async (e) => {
@@ -62,18 +63,20 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const result = await signIn.email({
-        email,
-        password,
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/users/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
       });
+      
+      const data = await res.json();
 
-      if (result?.error) {
-        setError(result.error.message || "Invalid email or password");
+      if (!res.ok) {
+        setError(data.error || "Invalid email or password");
       } else {
-        // Fetch user role from backend and redirect accordingly
-        const res = await fetch(`http://localhost:5000/api/users/${email}`);
-        const data = await res.json();
-        handleRoleRedirect(data?.role || "client");
+        setUser(data.user);
+        handleRoleRedirect(data.user?.role || "client");
       }
     } catch (err) {
       setError("An unexpected error occurred during login.");
@@ -82,13 +85,11 @@ export default function LoginPage() {
     }
   };
 
-  // Handle Google OAuth login
-  const handleGoogleLogin = async () => {
+  // Handle Google OAuth login redirection
+  const handleGoogleLogin = () => {
     try {
-      await signIn.social({
-        provider: "google",
-        callbackURL: "/login?oauth_success=true",
-      });
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      window.location.href = `${API_URL}/auth/google`;
     } catch (err) {
       setError("Google sign-in failed.");
     }
