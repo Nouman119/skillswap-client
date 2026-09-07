@@ -1,153 +1,145 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRoleRedirect } from "@/hooks/useRoleRedirect";
+import { useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function EditProfilePage() {
-  const { session } = useRoleRedirect(["freelancer"]);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [feedback, setFeedback] = useState({ type: "", message: "" });
-  const [profileData, setProfileData] = useState({
-    name: "",
-    image: "",
-    skills: "",
-    bio: "",
-    hourlyRate: 0,
-  });
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState({ error: "", success: "" });
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-  useEffect(() => {
-    if (session?.user?.email) {
-      fetch(`${API_URL}/api/users/profile?email=${session.user.email}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data && !data.error) {
-            setProfileData({
-              name: data.name || session.user.name || "",
-              image: data.image || session.user.image || "",
-              skills: Array.isArray(data.skills) ? data.skills.join(", ") : "",
-              bio: data.bio || "",
-              hourlyRate: data.hourlyRate || 0,
-            });
-          }
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
-    }
-  }, [session, API_URL]);
-
-  const handleUpdateProfile = async (e) => {
+  // ----------------------------------------------------
+  // Handle Freelancer Profile Update
+  // ----------------------------------------------------
+  const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    setUpdating(true);
-    setFeedback({ type: "", message: "" });
+    setLoading(true);
+    setFeedback({ error: "", success: "" });
 
-    const payload = {
-      email: session?.user?.email,
-      name: profileData.name,
-      image: profileData.image,
-      skills: profileData.skills,
-      bio: profileData.bio,
-      hourlyRate: profileData.hourlyRate,
+    const form = e.target;
+    const profilePayload = {
+      email: user?.email || "freelancer@skillswap.com",
+      name: form.name.value,
+      image: form.image.value,
+      skills: form.skills.value,
+      bio: form.bio.value,
+      hourlyRate: Number(form.hourlyRate.value),
     };
 
     try {
-      const res = await fetch(`${API_URL}/api/users/profile`, {
-        method: "PATCH",
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/tasks/freelancers/profile`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(profilePayload),
       });
+
       const data = await res.json();
-      if (data.success) {
-        setFeedback({ type: "success", message: "Profile updated successfully!" });
-      } else {
-        setFeedback({ type: "error", message: data.error || "Failed to update profile" });
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update profile");
       }
+
+      setFeedback({ error: "", success: "Profile details updated successfully!" });
     } catch (err) {
-      setFeedback({ type: "error", message: "Server connection failed" });
+      setFeedback({ error: err.message, success: "" });
     } finally {
-      setUpdating(false);
+      setLoading(false);
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-600">Loading profile data...</div>;
-
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="mx-auto max-w-2xl rounded-xl border border-gray-100 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Edit Public Profile</h1>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Edit Public Profile</h1>
+        <p className="mt-1 text-sm text-gray-500">Update your freelance credentials, showcase skills, and adjust hourly pricing.</p>
+      </div>
 
-        {feedback.message && (
-          <div className={`mb-4 rounded p-3 text-sm ${feedback.type === "success" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-            {feedback.message}
-          </div>
-        )}
+      {feedback.error && (
+        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700 border border-red-200">
+          {feedback.error}
+        </div>
+      )}
 
-        <form onSubmit={handleUpdateProfile} className="space-y-4">
+      {feedback.success && (
+        <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-700 border border-emerald-200">
+          {feedback.success}
+        </div>
+      )}
+
+      {/* Profile Form */}
+      <form onSubmit={handleProfileSubmit} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Full Name</label>
+          <input
+            name="name"
+            type="text"
+            required
+            defaultValue={user?.name || "Freelancer"}
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Profile Photo URL</label>
+          <input
+            name="image"
+            type="url"
+            placeholder="https://example.com/avatar.jpg"
+            defaultValue={user?.image || ""}
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none text-sm"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
+            <label className="block text-sm font-medium text-gray-700">Hourly Rate (USD)</label>
             <input
+              name="hourlyRate"
+              type="number"
+              min="1"
+              required
+              placeholder="e.g. 35"
+              defaultValue="25"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Skills (Comma Separated)</label>
+            <input
+              name="skills"
               type="text"
               required
-              value={profileData.name}
-              onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-              className="w-full rounded border border-gray-300 p-2 text-sm"
+              placeholder="React, Next.js, Tailwind, Node.js"
+              defaultValue="React, Next.js, Tailwind CSS"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none text-sm"
             />
           </div>
+        </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Profile Photo Link (URL)</label>
-            <input
-              type="url"
-              value={profileData.image}
-              onChange={(e) => setProfileData({ ...profileData, image: e.target.value })}
-              className="w-full rounded border border-gray-300 p-2 text-sm"
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Professional Bio</label>
+          <textarea
+            name="bio"
+            rows="4"
+            required
+            placeholder="Briefly describe your expertise, years of experience, and technologies you master..."
+            defaultValue="Full-stack developer building clean, responsive, and performance-oriented web applications."
+            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none text-sm"
+          ></textarea>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Hourly Rate ($ USD)</label>
-              <input
-                type="number"
-                value={profileData.hourlyRate}
-                onChange={(e) => setProfileData({ ...profileData, hourlyRate: e.target.value })}
-                className="w-full rounded border border-gray-300 p-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Skills (comma-separated tags)</label>
-              <input
-                type="text"
-                placeholder="React, Next.js, Tailwind, Node.js"
-                value={profileData.skills}
-                onChange={(e) => setProfileData({ ...profileData, skills: e.target.value })}
-                className="w-full rounded border border-gray-300 p-2 text-sm"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Bio Description</label>
-            <textarea
-              rows="4"
-              value={profileData.bio}
-              onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
-              placeholder="Tell clients about your expertise..."
-              className="w-full rounded border border-gray-300 p-2 text-sm"
-            />
-          </div>
-
+        <div className="flex justify-end">
           <button
             type="submit"
-            disabled={updating}
-            className="w-full rounded bg-indigo-600 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            disabled={loading}
+            className="rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition"
           >
-            {updating ? "Saving Changes..." : "Save Profile"}
+            {loading ? "Saving Changes..." : "Save Profile"}
           </button>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 }
