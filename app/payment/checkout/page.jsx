@@ -3,75 +3,120 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function CheckoutPage() {
+export default function StripeDummyCheckoutPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const proposalId = searchParams.get("proposalId");
-  const amount = searchParams.get("amount");
+  const amount = searchParams.get("amount") || "100";
 
-  const [processing, setProcessing] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-  const handleDummyPayment = async (e) => {
+  // ----------------------------------------------------
+  // Handle dummy payment submission and update task status
+  // ----------------------------------------------------
+  const handlePaymentSubmit = async (e) => {
     e.preventDefault();
-    setProcessing(true);
+    setLoading(true);
     setError("");
 
+    const transactionId = `txn_dummy_${Math.random().toString(36).substring(2, 12)}`;
+
     try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
       const res = await fetch(`${API_URL}/api/tasks/proposals/${proposalId}/accept-and-pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          transactionId: `CARD_SIM_${Date.now()}`
-        })
+        body: JSON.stringify({ transactionId }),
       });
 
       const data = await res.json();
-      if (data.success) {
-        router.push("/dashboard/client");
-      } else {
-        setError(data.error || "Payment verification failed");
+
+      if (!res.ok) {
+        throw new Error(data.error || "Payment processing failed");
       }
+
+      alert("Payment Successful! Task is now In-Progress.");
+      router.push("/dashboard/client/proposals");
     } catch (err) {
-      setError("An error occurred during transaction processing");
+      setError(err.message);
     } finally {
-      setProcessing(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Stripe Card Checkout</h2>
-        <p className="text-sm text-gray-500 mb-6">Total Charge: <span className="font-semibold text-gray-900">${amount || "0"}</span></p>
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
+      <div className="w-full max-w-md space-y-8 rounded-xl bg-white p-8 shadow-md">
+        <div>
+          <h2 className="text-center text-3xl font-extrabold text-gray-900">
+            Stripe Secure Checkout
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Dummy Payment Gateway • Amount to Pay: <span className="font-bold text-emerald-600">${amount} USD</span>
+          </p>
+        </div>
 
-        {error && <div className="mb-4 rounded bg-red-100 p-3 text-sm text-red-700">{error}</div>}
+        {error && (
+          <div className="rounded-lg bg-red-50 p-4 text-sm text-red-700 border border-red-200">
+            {error}
+          </div>
+        )}
 
-        <form onSubmit={handleDummyPayment} className="space-y-4">
+        <form className="mt-8 space-y-6" onSubmit={handlePaymentSubmit}>
+          <div className="space-y-4 rounded-md shadow-sm">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Cardholder Name</label>
+              <input
+                type="text"
+                required
+                defaultValue="John Doe"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Card Number</label>
+              <input
+                type="text"
+                required
+                placeholder="4242 •••• •••• 4242"
+                defaultValue="4242424242424242"
+                className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Expiration Date</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="MM/YY"
+                  defaultValue="12/28"
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">CVC / CVV</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="123"
+                  defaultValue="123"
+                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">Card Number</label>
-            <input type="text" placeholder="4242 •••• •••• 4242" defaultValue="4242424242424242" required className="w-full rounded-md border border-gray-300 p-2 text-sm" />
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-md bg-indigo-600 px-4 py-2.5 font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 transition"
+            >
+              {loading ? "Processing Payment..." : `Pay $${amount} USD`}
+            </button>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Expiry Date</label>
-              <input type="text" placeholder="MM/YY" defaultValue="12/28" required className="w-full rounded-md border border-gray-300 p-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">CVC</label>
-              <input type="text" placeholder="123" defaultValue="123" required className="w-full rounded-md border border-gray-300 p-2 text-sm" />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={processing}
-            className="w-full rounded-md bg-emerald-600 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-          >
-            {processing ? "Processing Payment..." : `Pay $${amount || "0"}`}
-          </button>
         </form>
       </div>
     </div>
