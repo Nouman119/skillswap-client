@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 export default function BrowseTasksPage() {
@@ -12,8 +12,14 @@ export default function BrowseTasksPage() {
   const [feedback, setFeedback] = useState({ error: "", success: "" });
 
   // ----------------------------------------------------
-  // Fetch all open tasks available on the platform
+  // SECTION 12 (Challenge 1): Search & Category Filter States
   // ----------------------------------------------------
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+
+  const categories = ["All", "Design", "Writing", "Development", "Marketing", "Other"];
+
+  // Fetch all tasks from backend
   useEffect(() => {
     async function fetchOpenTasks() {
       try {
@@ -38,8 +44,23 @@ export default function BrowseTasksPage() {
   }, []);
 
   // ----------------------------------------------------
-  // Handle Submit Proposal Form
+  // SECTION 12 (Challenge 1): Combined Real-time Filtering Logic
   // ----------------------------------------------------
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchesTitle = task.title
+        ?.toLowerCase()
+        .includes(searchQuery.trim().toLowerCase());
+
+      const matchesCategory =
+        selectedCategory === "All" ||
+        task.category?.toLowerCase() === selectedCategory.toLowerCase();
+
+      return matchesTitle && matchesCategory;
+    });
+  }, [tasks, searchQuery, selectedCategory]);
+
+  // Handle Proposal Submission
   const handleProposalSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -93,17 +114,54 @@ export default function BrowseTasksPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Browse Open Tasks</h1>
-        <p className="mt-1 text-sm text-gray-500">Find client projects matching your skill set and submit competitive proposals.</p>
+        <p className="mt-1 text-sm text-gray-500">
+          Find client projects matching your skill set and submit competitive proposals.
+        </p>
+      </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* SECTION 12 (Challenge 1): Search Bar and Category Dropdown UI */}
+      {/* ---------------------------------------------------- */}
+      <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+        {/* Real-time Title Search Input */}
+        <div className="flex-1">
+          <label htmlFor="search" className="sr-only">Search by title</label>
+          <input
+            id="search"
+            type="text"
+            placeholder="Search tasks by title..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
+          />
+        </div>
+
+        {/* Category Filter Dropdown */}
+        <div className="w-full sm:w-56">
+          <label htmlFor="category" className="sr-only">Select category</label>
+          <select
+            id="category"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none"
+          >
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat === "All" ? "All Categories" : cat}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Task Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {tasks.length === 0 ? (
+        {filteredTasks.length === 0 ? (
           <div className="col-span-full p-8 text-center text-sm text-gray-500 bg-white rounded-xl border border-gray-200">
-            No open tasks available at the moment.
+            No matching tasks found for your search criteria.
           </div>
         ) : (
-          tasks.map((task) => (
+          filteredTasks.map((task) => (
             <div
               key={task._id}
               className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-between hover:border-indigo-300 transition"
@@ -122,7 +180,9 @@ export default function BrowseTasksPage() {
               <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-gray-400">Client</p>
-                  <p className="text-xs font-medium text-gray-700 truncate max-w-30">{task.clientName || task.clientEmail}</p>
+                  <p className="text-xs font-medium text-gray-700 truncate max-w-[120px]">
+                    {task.clientName || task.clientEmail}
+                  </p>
                 </div>
                 <button
                   onClick={() => {
@@ -139,9 +199,7 @@ export default function BrowseTasksPage() {
         )}
       </div>
 
-      {/* ---------------------------------------------------- */}
       {/* Proposal Submission Modal Dialog */}
-      {/* ---------------------------------------------------- */}
       {selectedTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -222,7 +280,7 @@ export default function BrowseTasksPage() {
                   name="message"
                   rows="4"
                   required
-                  placeholder="Explain why you are the best fit for this project and describe your relevant experience..."
+                  placeholder="Explain why you are the best fit for this project..."
                   className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
                 ></textarea>
               </div>
