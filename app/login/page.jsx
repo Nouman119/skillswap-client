@@ -14,9 +14,7 @@ export default function LoginPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // ----------------------------------------------------
-  // Email and password form login logic
-  // ----------------------------------------------------
+  // Email/Password login
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -24,7 +22,6 @@ export default function LoginPage() {
 
     try {
       await login(formData.email, formData.password);
-      // Role redirects are handled internally by handleRoleRedirect in AuthContext
     } catch (err) {
       setError(err.message || "Failed to log in. Please check credentials.");
     } finally {
@@ -32,9 +29,7 @@ export default function LoginPage() {
     }
   };
 
-  // ----------------------------------------------------
-  // Google OAuth login button handler
-  // ----------------------------------------------------
+  // Google OAuth sign-in
   const handleGoogleSignIn = async () => {
     setError("");
     setSubmitting(true);
@@ -42,7 +37,6 @@ export default function LoginPage() {
       await loginWithGoogle();
     } catch (err) {
       setError(err.message || "Google authentication failed.");
-    } finally {
       setSubmitting(false);
     }
   };
@@ -53,7 +47,7 @@ export default function LoginPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Welcome back</h1>
           <p className="mt-1 text-xs text-gray-500">
-            Sign in to manage your tasks, submissions, or client proposals.
+            Sign in via Better Auth
           </p>
         </div>
 
@@ -63,9 +57,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* ---------------------------------------------------- */}
-        {/* Google OAuth Login Button */}
-        {/* ---------------------------------------------------- */}
+        {/* Real Google OAuth Button */}
         <button
           type="button"
           onClick={handleGoogleSignIn}
@@ -100,9 +92,7 @@ export default function LoginPage() {
           </span>
         </div>
 
-        {/* ---------------------------------------------------- */}
         {/* Email & Password Input Form */}
-        {/* ---------------------------------------------------- */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-gray-700">Email Address</label>

@@ -1,34 +1,29 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
+  const [user, setUser] = useState(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-  // Hydrate user session from localStorage
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("skillswap_user");
-      if (stored) {
-        setUser(JSON.parse(stored));
-      }
-    } catch (e) {
-      console.error("Failed to parse saved user", e);
-    } finally {
-      setLoading(false);
+    if (session?.user) {
+      setUser(session.user);
+      localStorage.setItem("skillswap_user", JSON.stringify(session.user));
+    } else if (!isPending && !session) {
+      setUser(null);
+      localStorage.removeItem("skillswap_user");
     }
-  }, []);
+  }, [session, isPending]);
 
   // ----------------------------------------------------
-  // Path router redirects rule
-  // Clients -> Home (/); Freelancers & Admins -> Dashboard path
+  // SECTION 06: Role-based redirect router rules
+  // Clients -> Home (/); Freelancers & Admins -> Dashboard
   // ----------------------------------------------------
   const handleRoleRedirect = (role) => {
     if (role === "admin") {
@@ -40,74 +35,71 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Standard Email/Password Login
+  // ----------------------------------------------------
+  // Better Auth: Email & Password Sign In
+  // ----------------------------------------------------
   const login = async (email, password) => {
-    const res = await fetch(`${API_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+    const { data, error } = await authClient.signIn.email({
+      email,
+      password,
     });
-    const data = await res.json();
 
-    if (!res.ok) {
-      throw new Error(data.error || "Login failed");
+    if (error) {
+      throw new Error(error.message || "Failed to sign in");
     }
 
-    setUser(data.user);
-    localStorage.setItem("skillswap_user", JSON.stringify(data.user));
-    handleRoleRedirect(data.user.role);
-    return data.user;
+    const activeUser = data?.user;
+    if (activeUser) {
+      setUser(activeUser);
+      localStorage.setItem("skillswap_user", JSON.stringify(activeUser));
+      handleRoleRedirect(activeUser.role || "client");
+    }
+    return activeUser;
   };
 
   // ----------------------------------------------------
-  // SECTION 06: Google OAuth sign-in flow simulation & sync
+  // Better Auth: Real Google OAuth Sign In
   // ----------------------------------------------------
   const loginWithGoogle = async () => {
-    const mockEmail = `client_${Date.now().toString().slice(-4)}@gmail.com`;
-    const mockName = "Google Verified Client";
-
-    const res = await fetch(`${API_URL}/api/auth/google`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: mockEmail,
-        name: mockName,
-        image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
-      }),
+    const { error } = await authClient.signIn.social({
+      provider: "google",
+      callbackURL: "/", // Google login auto-defaults to Client and redirects to Home
+      prompt: "select_account",
     });
-    const data = await res.json();
 
-    if (!res.ok) {
-      throw new Error(data.error || "Google authentication failed");
+    if (error) {
+      throw new Error(error.message || "Google authentication failed");
     }
-
-    setUser(data.user);
-    localStorage.setItem("skillswap_user", JSON.stringify(data.user));
-    handleRoleRedirect(data.user.role);
-    return data.user;
   };
 
-  // Standard Registration
-  const register = async (userData) => {
-    const res = await fetch(`${API_URL}/api/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(userData),
+  // ----------------------------------------------------
+  // Better Auth: Email & Password Sign Up
+  // ----------------------------------------------------
+  const register = async ({ name, email, password, image, role }) => {
+    const { data, error } = await authClient.signUp.email({
+      name,
+      email,
+      password,
+      image: image || undefined,
+      role: role || "client",
     });
-    const data = await res.json();
 
-    if (!res.ok) {
-      throw new Error(data.error || "Registration failed");
+    if (error) {
+      throw new Error(error.message || "Registration failed");
     }
 
-    setUser(data.user);
-    localStorage.setItem("skillswap_user", JSON.stringify(data.user));
-    handleRoleRedirect(data.user.role);
-    return data.user;
+    const newUser = data?.user;
+    if (newUser) {
+      setUser(newUser);
+      localStorage.setItem("skillswap_user", JSON.stringify(newUser));
+      handleRoleRedirect(newUser.role || role || "client");
+    }
+    return newUser;
   };
 
   // Sign out
-  const logout = () => {
+  const logout = async () => {
+    await authClient.signOut();
     setUser(null);
     localStorage.removeItem("skillswap_user");
     router.push("/login");
@@ -117,7 +109,7 @@ export const AuthProvider = ({ children }) => {
     <AuthContext.Provider
       value={{
         user,
-        loading,
+        loading: isPending,
         login,
         register,
         loginWithGoogle,

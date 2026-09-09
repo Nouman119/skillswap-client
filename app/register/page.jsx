@@ -16,13 +16,9 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // ----------------------------------------------------
-  // SECTION 06: Password constraints client-side validation
-  // Min 6 chars, 1 uppercase, 1 lowercase
-  // ----------------------------------------------------
   const validatePassword = (pwd) => {
-    if (pwd.length < 6) {
-      return "Password must be at least 6 characters long";
+    if (pwd.length < 8) {
+      return "Password must be at least 8 characters long for Better Auth";
     }
     if (!/[A-Z]/.test(pwd)) {
       return "Password must contain at least one uppercase letter";
@@ -51,7 +47,7 @@ export default function RegisterPage() {
     try {
       await register(formData);
     } catch (err) {
-      setError(err.message || "Registration failed. Please try again.");
+      setError(err.message || "Registration failed. Please check your credentials.");
     } finally {
       setSubmitting(false);
     }
@@ -63,7 +59,7 @@ export default function RegisterPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Create your account</h1>
           <p className="mt-1 text-xs text-gray-500">
-            Join the SkillSwap network to collaborate or hire specialists.
+            Powered by Better Auth & Google OAuth
           </p>
         </div>
 
@@ -73,9 +69,6 @@ export default function RegisterPage() {
           </div>
         )}
 
-        {/* ---------------------------------------------------- */}
-        {/* Google OAuth Quick Sign-Up (Auto-saved as Client) */}
-        {/* ---------------------------------------------------- */}
         <button
           type="button"
           onClick={loginWithGoogle}
@@ -105,13 +98,10 @@ export default function RegisterPage() {
         <div className="relative flex items-center justify-center">
           <div className="border-t border-gray-200 w-full"></div>
           <span className="bg-white px-2 text-[11px] uppercase tracking-wider text-gray-400 absolute">
-            Or register with form
+            Or register with email
           </span>
         </div>
 
-        {/* ---------------------------------------------------- */}
-        {/* Standard Email/Password Form */}
-        {/* ---------------------------------------------------- */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-gray-700">Full Name</label>
@@ -140,7 +130,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700">Profile Image URL</label>
+            <label className="block text-xs font-medium text-gray-700">Profile Image URL (Optional)</label>
             <input
               name="image"
               type="url"
@@ -163,13 +153,10 @@ export default function RegisterPage() {
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
             />
             <p className="mt-1 text-[11px] text-gray-400">
-              Must be at least 6 characters, including 1 uppercase and 1 lowercase letter.
+              Must be at least 8 chars, with at least 1 uppercase and 1 lowercase letter.
             </p>
           </div>
 
-          {/* ---------------------------------------------------- */}
-          {/* Account Role Selection: Client vs Freelancer */}
-          {/* ---------------------------------------------------- */}
           <div>
             <span className="block text-xs font-medium text-gray-700 mb-2">Account Role</span>
             <div className="grid grid-cols-2 gap-3">
