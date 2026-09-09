@@ -1,46 +1,132 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
-const AuthContext = createContext(null);
+const AuthContext = createContext();
 
-export function AuthProvider({ children }) {
+export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
-  // ----------------------------------------------------
-  // Mock or session check implementation for auth state
-  // ----------------------------------------------------
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  // Hydrate user session from localStorage
   useEffect(() => {
-    // You can replace this with your actual session verification logic (e.g., Firebase, NextAuth, or custom JWT cookie check)
-    setLoading(false);
+    try {
+      const stored = localStorage.getItem("skillswap_user");
+      if (stored) {
+        setUser(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.error("Failed to parse saved user", e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const logOut = async () => {
-    try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      await fetch(`${API_URL}/api/users/logout`, { method: "POST" });
-      setUser(null);
-      window.location.href = "/login";
-    } catch (error) {
-      console.error("Logout error:", error);
+  // ----------------------------------------------------
+  // Path router redirects rule
+  // Clients -> Home (/); Freelancers & Admins -> Dashboard path
+  // ----------------------------------------------------
+  const handleRoleRedirect = (role) => {
+    if (role === "admin") {
+      router.push("/dashboard/admin");
+    } else if (role === "freelancer") {
+      router.push("/dashboard/freelancer");
+    } else {
+      router.push("/");
     }
   };
 
-  const value = {
-    user,
-    setUser,
-    loading,
-    logOut,
+  // Standard Email/Password Login
+  const login = async (email, password) => {
+    const res = await fetch(`${API_URL}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "Login failed");
+    }
+
+    setUser(data.user);
+    localStorage.setItem("skillswap_user", JSON.stringify(data.user));
+    handleRoleRedirect(data.user.role);
+    return data.user;
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
+  // ----------------------------------------------------
+  // SECTION 06: Google OAuth sign-in flow simulation & sync
+  // ----------------------------------------------------
+  const loginWithGoogle = async () => {
+    const mockEmail = `client_${Date.now().toString().slice(-4)}@gmail.com`;
+    const mockName = "Google Verified Client";
 
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
-}
+    const res = await fetch(`${API_URL}/api/auth/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: mockEmail,
+        name: mockName,
+        image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+      }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "Google authentication failed");
+    }
+
+    setUser(data.user);
+    localStorage.setItem("skillswap_user", JSON.stringify(data.user));
+    handleRoleRedirect(data.user.role);
+    return data.user;
+  };
+
+  // Standard Registration
+  const register = async (userData) => {
+    const res = await fetch(`${API_URL}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.error || "Registration failed");
+    }
+
+    setUser(data.user);
+    localStorage.setItem("skillswap_user", JSON.stringify(data.user));
+    handleRoleRedirect(data.user.role);
+    return data.user;
+  };
+
+  // Sign out
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem("skillswap_user");
+    router.push("/login");
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        loginWithGoogle,
+        logout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => useContext(AuthContext);
