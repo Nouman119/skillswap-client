@@ -11,19 +11,33 @@ export default function EditProfilePage() {
   // ----------------------------------------------------
   // Handle Freelancer Profile Update
   // ----------------------------------------------------
+
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
+
+    const form = e.target;
+    const userEmail = (user?.email || (typeof window !== "undefined" ? localStorage.getItem("userEmail") : ""))?.trim();
+
+    console.log("Logged In User Object:", user);
+    console.log("Submitting with Email:", userEmail);
+
     setLoading(true);
     setFeedback({ error: "", success: "" });
 
-    const form = e.target;
-    const profilePayload = {
-      email: user?.email || "freelancer@skillswap.com",
-      name: form.name.value,
-      image: form.image.value,
-      skills: form.skills.value,
-      bio: form.bio.value,
-      hourlyRate: Number(form.hourlyRate.value),
+    if (!userEmail) {
+      setFeedback({ error: "Please log in first to update your profile.", success: "" });
+      setLoading(false);
+      return;
+    }
+
+const profilePayload = {
+      userId: user?.id || user?._id,
+      email: userEmail,
+      name: form.name.value.trim(),
+      image: form.image.value.trim(),
+      skills: form.skills.value.trim(),
+      bio: form.bio.value.trim(),
+      hourlyRate: Number(form.hourlyRate.value) || 0,
     };
 
     try {
@@ -100,7 +114,7 @@ export default function EditProfilePage() {
               min="1"
               required
               placeholder="e.g. 35"
-              defaultValue="25"
+              defaultValue={user?.hourlyRate || "25"}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none text-sm"
             />
           </div>
@@ -112,7 +126,7 @@ export default function EditProfilePage() {
               type="text"
               required
               placeholder="React, Next.js, Tailwind, Node.js"
-              defaultValue="React, Next.js, Tailwind CSS"
+              defaultValue={Array.isArray(user?.skills) ? user.skills.join(", ") : (user?.skills || "React, Next.js, Tailwind CSS")}
               className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none text-sm"
             />
           </div>
@@ -125,7 +139,7 @@ export default function EditProfilePage() {
             rows="4"
             required
             placeholder="Briefly describe your expertise, years of experience, and technologies you master..."
-            defaultValue="Full-stack developer building clean, responsive, and performance-oriented web applications."
+            defaultValue={user?.bio || "Full-stack developer building clean, responsive, and performance-oriented web applications."}
             className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:outline-none text-sm"
           ></textarea>
         </div>

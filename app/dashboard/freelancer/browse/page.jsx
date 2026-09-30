@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 export default function BrowseTasksPage() {
@@ -11,54 +11,61 @@ export default function BrowseTasksPage() {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
 
-  // ----------------------------------------------------
-  // SECTION 12 (Challenge 1): Search & Category Filter States
-  // ----------------------------------------------------
+  // Pagination & Filter States
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
   const categories = ["All", "Design", "Writing", "Development", "Marketing", "Other"];
 
-  // Fetch all tasks from backend
+  // Fetch tasks with Server-side Pagination & Filtering
   useEffect(() => {
     async function fetchOpenTasks() {
       try {
+        setLoading(true);
         const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-        const res = await fetch(`${API_URL}/api/tasks`);
+        
+        const params = {
+          page: currentPage,
+          limit: 9,
+        };
+
+        if (searchQuery.trim()) {
+          params.search = searchQuery.trim();
+        }
+
+        if (selectedCategory && selectedCategory !== "All") {
+          params.category = selectedCategory;
+        }
+
+        const queryParams = new URLSearchParams(params);
+
+        const res = await fetch(`${API_URL}/api/tasks?${queryParams.toString()}`);
         const data = await res.json();
 
         if (res.ok) {
-          const openList = Array.isArray(data)
-            ? data.filter((t) => t.status === "open")
-            : [];
-          setTasks(openList);
+          // ব্যাকএন্ড অবজেক্ট দিলে data.tasks নেবে, সরাসরি অ্যারে পাঠালে data নেবে
+          const rawTasks = Array.isArray(data) ? data : (data.tasks || []);
+          setTasks(rawTasks);
+          setTotalPages(data.totalPages || 1);
+        } else {
+          setTasks([]);
         }
       } catch (err) {
         console.error("Failed to load tasks:", err);
+        setTasks([]);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchOpenTasks();
-  }, []);
+    const delayDebounce = setTimeout(() => {
+      fetchOpenTasks();
+    }, 300); // Debounce search
 
-  // ----------------------------------------------------
-  // SECTION 12 (Challenge 1): Combined Real-time Filtering Logic
-  // ----------------------------------------------------
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      const matchesTitle = task.title
-        ?.toLowerCase()
-        .includes(searchQuery.trim().toLowerCase());
-
-      const matchesCategory =
-        selectedCategory === "All" ||
-        task.category?.toLowerCase() === selectedCategory.toLowerCase();
-
-      return matchesTitle && matchesCategory;
-    });
-  }, [tasks, searchQuery, selectedCategory]);
+    return () => clearTimeout(delayDebounce);
+  }, [currentPage, searchQuery, selectedCategory]);
 
   // Handle Proposal Submission
   const handleProposalSubmit = async (e) => {
@@ -78,7 +85,7 @@ export default function BrowseTasksPage() {
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      const res = await fetch(`${API_URL}/api/tasks/proposals`, {
+      const res = await fetch(`${API_URL}/api/tasks/submit-proposal`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(proposalData),
@@ -102,14 +109,6 @@ export default function BrowseTasksPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -119,30 +118,28 @@ export default function BrowseTasksPage() {
         </p>
       </div>
 
-      {/* ---------------------------------------------------- */}
-      {/* SECTION 12 (Challenge 1): Search Bar and Category Dropdown UI */}
-      {/* ---------------------------------------------------- */}
+      {/* Search Bar and Category Dropdown UI */}
       <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-        {/* Real-time Title Search Input */}
         <div className="flex-1">
-          <label htmlFor="search" className="sr-only">Search by title</label>
           <input
-            id="search"
             type="text"
             placeholder="Search tasks by title..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1); // Reset to page 1 on search
+            }}
             className="w-full rounded-lg border border-gray-300 px-3.5 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:outline-none"
           />
         </div>
 
-        {/* Category Filter Dropdown */}
         <div className="w-full sm:w-56">
-          <label htmlFor="category" className="sr-only">Select category</label>
           <select
-            id="category"
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setCurrentPage(1); // Reset to page 1 on category change
+            }}
             className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none"
           >
             {categories.map((cat) => (
@@ -155,49 +152,78 @@ export default function BrowseTasksPage() {
       </div>
 
       {/* Task Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredTasks.length === 0 ? (
-          <div className="col-span-full p-8 text-center text-sm text-gray-500 bg-white rounded-xl border border-gray-200">
-            No matching tasks found for your search criteria.
-          </div>
-        ) : (
-          filteredTasks.map((task) => (
-            <div
-              key={task._id}
-              className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-between hover:border-indigo-300 transition"
-            >
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
-                    {task.category}
-                  </span>
-                  <span className="text-sm font-bold text-emerald-600">${task.budget}</span>
-                </div>
-                <h3 className="text-base font-semibold text-gray-900 line-clamp-1">{task.title}</h3>
-                <p className="text-xs text-gray-500 line-clamp-3">{task.description}</p>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-gray-400">Client</p>
-                  <p className="text-xs font-medium text-gray-700 truncate max-w-30">
-                    {task.clientName || task.clientEmail}
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setSelectedTask(task);
-                    setFeedback({ error: "", success: "" });
-                  }}
-                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition"
-                >
-                  Apply Now
-                </button>
-              </div>
+      {loading ? (
+        <div className="flex h-64 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {tasks.length === 0 ? (
+            <div className="col-span-full p-8 text-center text-sm text-gray-500 bg-white rounded-xl border border-gray-200">
+              No matching tasks found for your search criteria.
             </div>
-          ))
-        )}
-      </div>
+          ) : (
+            tasks.map((task) => (
+              <div
+                key={task._id}
+                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-between hover:border-indigo-300 transition"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+                      {task.category}
+                    </span>
+                    <span className="text-sm font-bold text-emerald-600">${task.budget}</span>
+                  </div>
+                  <h3 className="text-base font-semibold text-gray-900 line-clamp-1">{task.title}</h3>
+                  <p className="text-xs text-gray-500 line-clamp-3">{task.description}</p>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-400">Client</p>
+                    <p className="text-xs font-medium text-gray-700 truncate max-w-30">
+                      {task.clientName || task.clientEmail}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedTask(task);
+                      setFeedback({ error: "", success: "" });
+                    }}
+                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 transition"
+                  >
+                    Apply Now
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-xl shadow-sm">
+          <button
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-gray-700">
+            Page <span className="font-bold">{currentPage}</span> of <span className="font-bold">{totalPages}</span>
+          </span>
+          <button
+            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
 
       {/* Proposal Submission Modal Dialog */}
       {selectedTask && (

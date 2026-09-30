@@ -59,7 +59,9 @@ export default function FreelancerPublicProfilePage() {
     );
   }
 
-  const skillsList = profile.skills
+ const skillsList = Array.isArray(profile.skills)
+    ? profile.skills
+    : typeof profile.skills === "string"
     ? profile.skills.split(",").map((s) => s.trim()).filter(Boolean)
     : ["General Specialist"];
 
