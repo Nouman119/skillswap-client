@@ -20,7 +20,7 @@ export default function Navbar() {
   // ----------------------------------------------------
   const publicLinks = [
     { name: "Home", href: "/" },
-    { name: "Browse Tasks", href: "/tasks" },
+    { name: "Browse Tasks", href: "/browse-tasks" },
     { name: "Browse Freelancers", href: "/freelancers" },
   ];
 
