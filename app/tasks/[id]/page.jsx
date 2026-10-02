@@ -50,11 +50,26 @@ export default function TaskDetailsPage() {
     setSubmitting(true);
     setFeedback({ error: "", success: "" });
 
+    if (!user) {
+      setFeedback({ error: "You must be logged in to submit a proposal.", success: "" });
+      setSubmitting(false);
+      return;
+    }
+
+    if (user.role?.toLowerCase() !== "freelancer") {
+      setFeedback({ error: "Only freelancers can submit proposals.", success: "" });
+      setSubmitting(false);
+      return;
+    }
+
     const form = e.target;
     const proposalData = {
       taskId: task._id,
-      freelancerEmail: user?.email || "freelancer@skillswap.com",
-      freelancerName: user?.name || "Freelancer",
+      taskTitle: task.title,
+      clientEmail: task.clientEmail,
+      freelancerId: user.id || user._id,
+      freelancerEmail: user.email,
+      freelancerName: user.name || "Freelancer",
       budgetPrice: Number(form.budgetPrice.value),
       completionDays: Number(form.completionDays.value),
       message: form.message.value,
@@ -86,7 +101,7 @@ export default function TaskDetailsPage() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+        <div className="h-9 w-9 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
       </div>
     );
   }
@@ -96,24 +111,29 @@ export default function TaskDetailsPage() {
       <div className="max-w-4xl mx-auto px-4 py-16 text-center space-y-4">
         <p className="text-base font-semibold text-red-600">{error || "Task could not be found."}</p>
         <Link
-          href="/tasks"
-          className="inline-block rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition"
+          href="/browse-tasks"
+          className="inline-block rounded-lg bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 transition"
         >
-          Back to Browse Tasks
+          ← Back to Browse Tasks
         </Link>
       </div>
     );
   }
+
+  // রোল এবং ওনারশিপ যাচাই
+  const isFreelancer = user?.role?.toLowerCase() === "freelancer";
+  const isOwner = user && (user.email === task.clientEmail);
+  const isOpen = (task.status || "open").toLowerCase() === "open";
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
       {/* Back to tasks navigation */}
       <div>
         <Link
-          href="/tasks"
+          href="/browse-tasks"
           className="text-xs font-semibold text-indigo-600 hover:underline inline-flex items-center gap-1"
         >
-          ← Back to all tasks
+          ← Back to Browse Tasks
         </Link>
       </div>
 
@@ -127,9 +147,9 @@ export default function TaskDetailsPage() {
               </span>
               <span
                 className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                  task.status === "open"
+                  isOpen
                     ? "bg-emerald-50 text-emerald-700"
-                    : "bg-gray-100 text-gray-700"
+                    : "bg-amber-50 text-amber-700"
                 }`}
               >
                 {task.status ? task.status.toUpperCase() : "OPEN"}
@@ -165,10 +185,11 @@ export default function TaskDetailsPage() {
               <p>• Fixed-price contract format</p>
               <p>• Verified platform client</p>
               <p>• Escrow payment guarantee</p>
+              <p>• Deadline: {task.deadline ? new Date(task.deadline).toLocaleDateString() : "Flexible"}</p>
             </div>
           </div>
 
-          {/* Proposal Form for Logged-in Freelancers */}
+          {/* Proposal Action Card (Role Conditioned) */}
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
             <h2 className="text-sm font-bold text-gray-900">Submit an Offer</h2>
 
@@ -184,50 +205,79 @@ export default function TaskDetailsPage() {
               </div>
             )}
 
-            <form onSubmit={handleProposalSubmit} className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Bid Amount ($)</label>
-                <input
-                  name="budgetPrice"
-                  type="number"
-                  min="1"
-                  required
-                  defaultValue={task.budget}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs focus:border-indigo-500 focus:outline-none"
-                />
+            {!isOpen ? (
+              <div className="p-4 bg-gray-50 rounded-xl text-center text-xs text-gray-500">
+                This task is currently <span className="font-semibold text-amber-600">{task.status}</span>. New proposals are not being accepted.
               </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Delivery Timeline (Days)</label>
-                <input
-                  name="completionDays"
-                  type="number"
-                  min="1"
-                  required
-                  defaultValue="3"
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs focus:border-indigo-500 focus:outline-none"
-                />
+            ) : !user ? (
+              <div className="p-4 bg-indigo-50/60 rounded-xl text-center space-y-3">
+                <p className="text-xs text-gray-600">
+                  You need to be logged in as a <strong>Freelancer</strong> to submit a proposal for this task.
+                </p>
+                <Link
+                  href="/login"
+                  className="block w-full text-center rounded-lg bg-indigo-600 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 transition"
+                >
+                  Log In to Apply
+                </Link>
               </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700">Cover Note</label>
-                <textarea
-                  name="message"
-                  rows="3"
-                  required
-                  placeholder="Outline your delivery strategy..."
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs focus:border-indigo-500 focus:outline-none"
-                ></textarea>
+            ) : isOwner ? (
+              <div className="p-4 bg-blue-50 rounded-xl text-center text-xs text-blue-700">
+                You created this task. You can monitor proposals from your{" "}
+                <Link href="/dashboard/client/my-tasks" className="font-bold underline">
+                  Client Dashboard
+                </Link>.
               </div>
+            ) : !isFreelancer ? (
+              <div className="p-4 bg-amber-50 rounded-xl text-center text-xs text-amber-700">
+                You are currently logged in with a <strong>{user.role || "Client"}</strong> account. Only freelancers can submit project proposals.
+              </div>
+            ) : (
+              <form onSubmit={handleProposalSubmit} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700">Bid Amount ($ USD)</label>
+                  <input
+                    name="budgetPrice"
+                    type="number"
+                    min="1"
+                    required
+                    defaultValue={task.budget}
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-800 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full rounded-lg bg-indigo-600 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition"
-              >
-                {submitting ? "Sending..." : "Submit Proposal"}
-              </button>
-            </form>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700">Delivery Timeline (Days)</label>
+                  <input
+                    name="completionDays"
+                    type="number"
+                    min="1"
+                    required
+                    defaultValue="3"
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-800 focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700">Cover Note / Strategy</label>
+                  <textarea
+                    name="message"
+                    rows="3"
+                    required
+                    placeholder="Outline your delivery strategy and relevant skills..."
+                    className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-1.5 text-xs text-gray-800 focus:border-indigo-500 focus:outline-none"
+                  ></textarea>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full rounded-lg bg-indigo-600 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50 transition"
+                >
+                  {submitting ? "Sending..." : "Submit Proposal"}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </div>

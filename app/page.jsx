@@ -45,14 +45,14 @@ export default function HomePage() {
       {/* ---------------------------------------------------- */}
       {/* Hero Banner Section with Smooth Layout Transitions */}
       {/* ---------------------------------------------------- */}
-      <section className="relative overflow-hidden bg-linear-to-b from-indigo-50/70 via-white to-white py-20 sm:py-28 border-b border-gray-100">
+      <section className="relative overflow-hidden bg-gradient-to-b from-indigo-50/70 via-white to-white py-20 sm:py-28 border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="max-w-3xl mx-auto space-y-6 transition-all duration-700 ease-out transform translate-y-0 opacity-100">
             <span className="inline-flex items-center rounded-full bg-indigo-100/80 px-3.5 py-1 text-xs font-semibold text-indigo-700">
               Decentralized Talent Network
             </span>
 
-            <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-gray-900 leading-tight">
+            <h1 className="text-4xl sm:6xl font-extrabold tracking-tight text-gray-900 leading-tight">
               Get your tasks done by skilled freelancers
             </h1>
 
@@ -68,7 +68,7 @@ export default function HomePage() {
                 Post a Task
               </Link>
               <Link
-                href="/tasks"
+                href="/browse-tasks"
                 className="w-full sm:w-auto rounded-xl border border-gray-300 bg-white px-6 py-3.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition duration-200 transform hover:-translate-y-0.5 shadow-sm"
               >
                 Browse Tasks
@@ -129,7 +129,7 @@ export default function HomePage() {
             <h2 className="text-2xl font-bold text-gray-900">Latest Featured Tasks</h2>
             <p className="text-sm text-gray-500 mt-1">Explore recently posted active contracts awaiting offers.</p>
           </div>
-          <Link href="/tasks" className="text-xs font-semibold text-indigo-600 hover:underline">
+          <Link href="/browse-tasks" className="text-xs font-semibold text-indigo-600 hover:underline">
             View all tasks →
           </Link>
         </div>
@@ -209,56 +209,64 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {freelancers.map((freelancer) => (
-              <div
-                key={freelancer._id}
-                className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-between hover:border-indigo-300 hover:shadow-md transition duration-200 text-center"
-              >
-                <div className="space-y-4">
-                  {freelancer.image ? (
-                    <img
-                      src={freelancer.image}
-                      alt={freelancer.name}
-                      className="h-16 w-16 mx-auto rounded-full object-cover border border-gray-200"
-                    />
-                  ) : (
-                    <div className="h-16 w-16 mx-auto rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xl">
-                      {freelancer.name ? freelancer.name.charAt(0).toUpperCase() : "U"}
-                    </div>
-                  )}
+            {freelancers.map((freelancer) => {
+              const skillsList = Array.isArray(freelancer.skills)
+                ? freelancer.skills
+                : typeof freelancer.skills === "string"
+                ? freelancer.skills.split(",")
+                : [];
 
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900">{freelancer.name}</h3>
-                    <div className="mt-1 flex items-center justify-center gap-1 text-xs text-amber-500">
-                      <span>★</span>
-                      <span className="font-semibold text-gray-700">{freelancer.rating}</span>
-                      <span className="text-gray-400">({freelancer.completedJobs} jobs)</span>
+              return (
+                <div
+                  key={freelancer._id}
+                  className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col justify-between hover:border-indigo-300 hover:shadow-md transition duration-200 text-center"
+                >
+                  <div className="space-y-4">
+                    {freelancer.image ? (
+                      <img
+                        src={freelancer.image}
+                        alt={freelancer.name}
+                        className="h-16 w-16 mx-auto rounded-full object-cover border border-gray-200"
+                      />
+                    ) : (
+                      <div className="h-16 w-16 mx-auto rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xl">
+                        {freelancer.name ? freelancer.name.charAt(0).toUpperCase() : "U"}
+                      </div>
+                    )}
+
+                    <div>
+                      <h3 className="text-sm font-bold text-gray-900">{freelancer.name}</h3>
+                      <div className="mt-1 flex items-center justify-center gap-1 text-xs text-amber-500">
+                        <span>★</span>
+                        <span className="font-semibold text-gray-700">{freelancer.rating || "5.0"}</span>
+                        <span className="text-gray-400">({freelancer.completedJobs || 0} jobs)</span>
+                      </div>
+                    </div>
+
+                    {/* Skill tags */}
+                    <div className="flex flex-wrap justify-center gap-1">
+                      {skillsList.slice(0, 2).map((skill, idx) => (
+                        <span
+                          key={idx}
+                          className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600"
+                        >
+                          {String(skill).trim()}
+                        </span>
+                      ))}
                     </div>
                   </div>
 
-                  {/* Skill tags */}
-                  <div className="flex flex-wrap justify-center gap-1">
-                    {freelancer.skills.split(",").slice(0, 2).map((skill, idx) => (
-                      <span
-                        key={idx}
-                        className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600"
-                      >
-                        {skill.trim()}
-                      </span>
-                    ))}
+                  <div className="mt-6 pt-4 border-t border-gray-100">
+                    <Link
+                      href={`/freelancers/${freelancer._id}`}
+                      className="block w-full rounded-lg bg-indigo-50 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition"
+                    >
+                      View Profile
+                    </Link>
                   </div>
                 </div>
-
-                <div className="mt-6 pt-4 border-t border-gray-100">
-                  <Link
-                    href={`/freelancers/${freelancer._id}`}
-                    className="block w-full rounded-lg bg-indigo-50 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition"
-                  >
-                    View Profile
-                  </Link>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -276,7 +284,7 @@ export default function HomePage() {
           {["Development", "Design", "Writing", "Marketing", "Other"].map((cat) => (
             <Link
               key={cat}
-              href={`/tasks?category=${cat}`}
+              href={`/browse-tasks?category=${cat}`}
               className="rounded-xl border border-gray-200 bg-white p-5 text-center shadow-sm hover:border-indigo-600 hover:text-indigo-600 transition duration-200 group"
             >
               <span className="block text-sm font-semibold text-gray-900 group-hover:text-indigo-600">
