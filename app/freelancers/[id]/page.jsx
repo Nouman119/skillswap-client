@@ -40,7 +40,7 @@ export default function FreelancerPublicProfilePage() {
   if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+        <div className="h-9 w-9 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
       </div>
     );
   }
@@ -51,7 +51,7 @@ export default function FreelancerPublicProfilePage() {
         <p className="text-base font-semibold text-red-600">{error || "Freelancer profile unavailable."}</p>
         <Link
           href="/freelancers"
-          className="inline-block rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition"
+          className="inline-block rounded-lg bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 transition"
         >
           Back to Freelancers
         </Link>
@@ -59,14 +59,14 @@ export default function FreelancerPublicProfilePage() {
     );
   }
 
- const skillsList = Array.isArray(profile.skills)
+  const skillsList = Array.isArray(profile.skills)
     ? profile.skills
     : typeof profile.skills === "string"
     ? profile.skills.split(",").map((s) => s.trim()).filter(Boolean)
     : ["General Specialist"];
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 min-h-screen">
       {/* Back Link */}
       <div>
         <Link
@@ -95,24 +95,37 @@ export default function FreelancerPublicProfilePage() {
               </div>
             )}
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{profile.name}</h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-gray-900">{profile.name}</h1>
+                <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                  Verified Specialist
+                </span>
+              </div>
               <p className="text-xs text-gray-500 mt-1">{profile.email}</p>
-              <span className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                Verified Specialist
-              </span>
+              
+              {/* Rating and Completed Metrics */}
+              <div className="mt-3 flex items-center gap-3 text-xs text-gray-600">
+                <span className="flex items-center text-amber-500 font-semibold gap-1">
+                  ★ {profile.rating || "5.0"}
+                </span>
+                <span className="text-gray-300">•</span>
+                <span><strong>{profile.completedJobs || 0}</strong> projects completed</span>
+              </div>
             </div>
           </div>
 
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 text-left sm:text-right min-w-[160px]">
-            <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Rate</p>
-            <p className="text-2xl font-bold text-emerald-700">${profile.hourlyRate || 25} <span className="text-xs font-normal text-emerald-600">/ hr</span></p>
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 text-left sm:text-right min-w-[170px]">
+            <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Hourly Rate</p>
+            <p className="text-2xl font-bold text-emerald-700">
+              ${profile.hourlyRate || 25} <span className="text-xs font-normal text-emerald-600">/ hr</span>
+            </p>
           </div>
         </div>
       </div>
 
       {/* Details Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Bio Section */}
+        {/* Bio & Experience Section */}
         <div className="md:col-span-2 space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-3">
             <h2 className="text-base font-semibold text-gray-900">About the Specialist</h2>
@@ -120,9 +133,16 @@ export default function FreelancerPublicProfilePage() {
               {profile.bio || "No professional summary provided yet."}
             </p>
           </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-3">
+            <h2 className="text-base font-semibold text-gray-900">Work Experience & History</h2>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Successfully executed milestones across enterprise architectures, focusing on scalable clean components and delivery assurance.
+            </p>
+          </div>
         </div>
 
-        {/* Skills & Contact Column */}
+        {/* Skills & Action Column */}
         <div className="space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
             <h2 className="text-base font-semibold text-gray-900">Core Expertise</h2>
@@ -139,16 +159,25 @@ export default function FreelancerPublicProfilePage() {
           </div>
 
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
-            <h2 className="text-base font-semibold text-gray-900">Direct Inquiries</h2>
+            <h2 className="text-base font-semibold text-gray-900">Direct Inquiries & Hire</h2>
             <p className="text-xs text-gray-500">
-              Need tailored software development or design services? Reach out directly via registered contact channels.
+              Have an open project? You can post a task targeted for this specialist or send a direct email.
             </p>
-            <a
-              href={`mailto:${profile.email}`}
-              className="block w-full text-center rounded-lg bg-indigo-600 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 transition"
-            >
-              Contact Freelancer
-            </a>
+            
+            <div className="space-y-2 pt-1">
+              <Link
+                href="/dashboard/client/post-task"
+                className="block w-full text-center rounded-lg bg-indigo-600 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 transition"
+              >
+                Create Task to Hire
+              </Link>
+              <a
+                href={`mailto:${profile.email}`}
+                className="block w-full text-center rounded-lg border border-gray-300 bg-white py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
+              >
+                Send Direct Email
+              </a>
+            </div>
           </div>
         </div>
       </div>

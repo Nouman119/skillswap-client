@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -7,17 +8,20 @@ import { useAuth } from "@/context/AuthContext";
 export default function Navbar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [mounted, setMounted] = useState(false);
 
-  // Determine dashboard link based on role
+  // Ensure component is fully mounted on client to prevent SSR hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const getDashboardPath = () => {
-    if (user?.role === "admin") return "/dashboard/admin";
-    if (user?.role === "freelancer") return "/dashboard/freelancer";
+    const role = (user?.role || "").toLowerCase();
+    if (role === "admin") return "/dashboard/admin";
+    if (role === "freelancer") return "/dashboard/freelancer";
     return "/dashboard/client";
   };
 
-  // ----------------------------------------------------
-  // SECTION 04: Public and Private Navigation Config
-  // ----------------------------------------------------
   const publicLinks = [
     { name: "Home", href: "/" },
     { name: "Browse Tasks", href: "/browse-tasks" },
@@ -53,12 +57,11 @@ export default function Navbar() {
             })}
           </div>
 
-          {/* Right Action Menu: Auth Conditionals */}
+          {/* Right Action Menu: Auth Conditionals (Safe from Hydration Mismatch) */}
           <div className="flex items-center space-x-4">
-            {user ? (
-              // ----------------------------------------------------
-              // Logged-in / Private Navigation State
-              // ----------------------------------------------------
+            {!mounted ? (
+              <div className="h-8 w-20 bg-gray-100 rounded animate-pulse"></div>
+            ) : user ? (
               <div className="flex items-center space-x-3">
                 <Link
                   href={getDashboardPath()}
@@ -68,7 +71,7 @@ export default function Navbar() {
                 </Link>
 
                 <Link
-                  href={user?.role === "freelancer" ? "/dashboard/freelancer/profile" : "/profile"}
+                  href={user?.role?.toLowerCase() === "freelancer" ? "/dashboard/freelancer/profile" : "/profile"}
                   className="text-xs font-medium text-gray-600 hover:text-gray-900 transition"
                 >
                   Profile
@@ -82,9 +85,6 @@ export default function Navbar() {
                 </button>
               </div>
             ) : (
-              // ----------------------------------------------------
-              // Unauthenticated / Public State
-              // ----------------------------------------------------
               <div className="flex items-center space-x-3">
                 <Link
                   href="/login"

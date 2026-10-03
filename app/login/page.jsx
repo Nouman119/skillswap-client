@@ -2,26 +2,43 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
+  const router = useRouter();
   const { login, loginWithGoogle } = useAuth();
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Sync inputs
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Email/Password login
+  // Helper function to redirect user according to designated RBAC role
+  const handleRoleRedirect = (role) => {
+    const normalizedRole = (role || "").toLowerCase();
+
+    if (normalizedRole === "admin") {
+      router.push("/dashboard/admin");
+    } else if (normalizedRole === "freelancer") {
+      router.push("/dashboard/freelancer");
+    } else {
+      router.push("/dashboard/client");
+    }
+  };
+
+  // Standard Email/Password login handler
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSubmitting(true);
 
     try {
-      await login(formData.email, formData.password);
+      const loggedUser = await login(formData.email, formData.password);
+      handleRoleRedirect(loggedUser?.role);
     } catch (err) {
       setError(err.message || "Failed to log in. Please check credentials.");
     } finally {
@@ -29,12 +46,13 @@ export default function LoginPage() {
     }
   };
 
-  // Google OAuth sign-in
+  // Google OAuth sign-in flow
   const handleGoogleSignIn = async () => {
     setError("");
     setSubmitting(true);
     try {
-      await loginWithGoogle();
+      const loggedUser = await loginWithGoogle();
+      handleRoleRedirect(loggedUser?.role);
     } catch (err) {
       setError(err.message || "Google authentication failed.");
       setSubmitting(false);
@@ -47,7 +65,7 @@ export default function LoginPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Welcome back</h1>
           <p className="mt-1 text-xs text-gray-500">
-            Sign in via Better Auth
+            Sign in to access your platform workspace
           </p>
         </div>
 
@@ -103,7 +121,7 @@ export default function LoginPage() {
               placeholder="name@example.com"
               value={formData.email}
               onChange={handleChange}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-900 focus:border-indigo-500 focus:outline-none"
             />
           </div>
 
@@ -116,7 +134,7 @@ export default function LoginPage() {
               placeholder="••••••••"
               value={formData.password}
               onChange={handleChange}
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-xs focus:border-indigo-500 focus:outline-none"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-xs text-gray-900 focus:border-indigo-500 focus:outline-none"
             />
           </div>
 

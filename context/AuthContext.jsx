@@ -9,29 +9,52 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
-  const [user, setUser] = useState(null);
 
+  // Initialize user state with cached local storage to prevent instant route guard bounces on browser refresh
+  const [user, setUser] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cachedUser = localStorage.getItem("skillswap_user");
+        return cachedUser ? JSON.parse(cachedUser) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  // Track overall authentication resolution state
+  const [loading, setLoading] = useState(true);
+
+  // Sync state when Better Auth resolves server session
   useEffect(() => {
+    if (isPending) {
+      setLoading(true);
+      return;
+    }
+
     if (session?.user) {
       setUser(session.user);
       localStorage.setItem("skillswap_user", JSON.stringify(session.user));
-    } else if (!isPending && !session) {
+    } else {
       setUser(null);
       localStorage.removeItem("skillswap_user");
     }
+
+    setLoading(false);
   }, [session, isPending]);
 
   // ----------------------------------------------------
-  // SECTION 06: Role-based redirect router rules
-  // Clients -> Home (/); Freelancers & Admins -> Dashboard
+  // Role-based routing helper
   // ----------------------------------------------------
   const handleRoleRedirect = (role) => {
-    if (role === "admin") {
+    const normalizedRole = (role || "").toLowerCase();
+    if (normalizedRole === "admin") {
       router.push("/dashboard/admin");
-    } else if (role === "freelancer") {
+    } else if (normalizedRole === "freelancer") {
       router.push("/dashboard/freelancer");
     } else {
-      router.push("/");
+      router.push("/dashboard/client");
     }
   };
 
@@ -63,7 +86,7 @@ export const AuthProvider = ({ children }) => {
   const loginWithGoogle = async () => {
     const { error } = await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/", // Google login auto-defaults to Client and redirects to Home
+      callbackURL: "/dashboard/client",
       prompt: "select_account",
     });
 
@@ -97,19 +120,26 @@ export const AuthProvider = ({ children }) => {
     return newUser;
   };
 
-  // Sign out
+  // ----------------------------------------------------
+  // Sign Out Handler
+  // ----------------------------------------------------
   const logout = async () => {
-    await authClient.signOut();
-    setUser(null);
-    localStorage.removeItem("skillswap_user");
-    router.push("/login");
+    try {
+      await authClient.signOut();
+    } catch (err) {
+      console.error("Sign out error:", err);
+    } finally {
+      setUser(null);
+      localStorage.removeItem("skillswap_user");
+      router.push("/login");
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        loading: isPending,
+        loading,
         login,
         register,
         loginWithGoogle,
