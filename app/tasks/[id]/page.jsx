@@ -13,13 +13,14 @@ export default function TaskDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   const [feedback, setFeedback] = useState({ error: "", success: "" });
 
   // ----------------------------------------------------
-  // Fetch single task details by ID
+  // Fetch single task details by ID & check existing proposal
   // ----------------------------------------------------
   useEffect(() => {
-    async function fetchTask() {
+    async function fetchTaskAndProposals() {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
         const res = await fetch(`${API_URL}/api/tasks/${id}`);
@@ -27,6 +28,17 @@ export default function TaskDetailsPage() {
 
         if (res.ok) {
           setTask(data);
+
+          if (user?.email) {
+            const propRes = await fetch(`${API_URL}/api/tasks/${id}/proposals`);
+            if (propRes.ok) {
+              const propData = await propRes.json();
+              const alreadyBidded = Array.isArray(propData) && propData.some(
+                (p) => p.freelancerEmail === user.email
+              );
+              setHasSubmitted(alreadyBidded);
+            }
+          }
         } else {
           setError(data.error || "Task not found");
         }
@@ -38,9 +50,9 @@ export default function TaskDetailsPage() {
     }
 
     if (id) {
-      fetchTask();
+      fetchTaskAndProposals();
     }
-  }, [id]);
+  }, [id, user?.email]);
 
   // ----------------------------------------------------
   // Handle Proposal Submission directly from details view
@@ -77,19 +89,23 @@ export default function TaskDetailsPage() {
 
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      const res = await fetch(`${API_URL}/api/tasks/proposals`, {
-        method: "POST",
+      const res = await fetch(`${API_URL}/api/tasks/${selectedProject._id}/submit-deliverable`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(proposalData),
+        body: JSON.stringify({ deliverable_url: deliverableUrl }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        if (data.error && data.error.toLowerCase().includes("already submitted")) {
+          setHasSubmitted(true);
+        }
         throw new Error(data.error || "Failed to submit proposal");
       }
 
       setFeedback({ error: "", success: "Your proposal has been submitted successfully!" });
+      setHasSubmitted(true);
       form.reset();
     } catch (err) {
       setFeedback({ error: err.message, success: "" });
@@ -120,7 +136,6 @@ export default function TaskDetailsPage() {
     );
   }
 
-  // রোল এবং ওনারশিপ যাচাই
   const isFreelancer = user?.role?.toLowerCase() === "freelancer";
   const isOwner = user && (user.email === task.clientEmail);
   const isOpen = (task.status || "open").toLowerCase() === "open";
@@ -146,11 +161,10 @@ export default function TaskDetailsPage() {
                 {task.category || "General"}
               </span>
               <span
-                className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                  isOpen
+                className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${isOpen
                     ? "bg-emerald-50 text-emerald-700"
                     : "bg-amber-50 text-amber-700"
-                }`}
+                  }`}
               >
                 {task.status ? task.status.toUpperCase() : "OPEN"}
               </span>
@@ -231,6 +245,26 @@ export default function TaskDetailsPage() {
             ) : !isFreelancer ? (
               <div className="p-4 bg-amber-50 rounded-xl text-center text-xs text-amber-700">
                 You are currently logged in with a <strong>{user.role || "Client"}</strong> account. Only freelancers can submit project proposals.
+              </div>
+            ) : hasSubmitted ? (
+              <div className="space-y-3 p-4 bg-amber-50 rounded-xl border border-amber-200 text-center">
+                <p className="text-xs font-semibold text-amber-800">
+                  You have already submitted a proposal for this task.
+                </p>
+                <p className="text-[11px] text-amber-600">
+                  You can track its status from your{" "}
+                  <Link href="/dashboard/freelancer/my-proposals" className="font-bold underline">
+                    My Proposals
+                  </Link>{" "}
+                  tab.
+                </p>
+                <button
+                  type="button"
+                  disabled
+                  className="w-full cursor-not-allowed rounded-lg bg-gray-200 py-2.5 text-xs font-semibold text-gray-400 shadow-none"
+                >
+                  Proposal Already Submitted
+                </button>
               </div>
             ) : (
               <form onSubmit={handleProposalSubmit} className="space-y-3">

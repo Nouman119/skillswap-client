@@ -15,6 +15,7 @@ export default function FreelancerDashboardLayout({ children }) {
     { name: "My Proposals", href: "/dashboard/freelancer/proposals" },
     { name: "Active Projects", href: "/dashboard/freelancer/projects" },
     { name: "My Earnings", href: "/dashboard/freelancer/earnings" },
+    { name: "Reviews & Ratings", href: "/dashboard/freelancer/reviews" },
     { name: "Edit Profile", href: "/dashboard/freelancer/profile" },
   ];
 

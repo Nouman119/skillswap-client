@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ActiveProjectsPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [projects, setProjects] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState(null);
   const [deliverableUrl, setDeliverableUrl] = useState("");
@@ -13,45 +14,75 @@ export default function ActiveProjectsPage() {
   const [error, setError] = useState("");
 
   // ----------------------------------------------------
-  // Fetch active and completed projects for freelancer
+  // Fetch active and completed projects along with reviews
   // ----------------------------------------------------
-  const fetchProjects = async () => {
-    try {
-      const email = user?.email || "freelancer@skillswap.com";
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      const res = await fetch(`${API_URL}/api/tasks/freelancer-projects?email=${email}`);
-      const data = await res.json();
+  const fetchProjectsAndReviews = useCallback(async () => {
+    if (!user?.email) {
+      if (!authLoading) setLoading(false);
+      return;
+    }
 
-      if (res.ok) {
-        setProjects(Array.isArray(data) ? data : []);
+    try {
+      setLoading(true);
+      setError("");
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+      // 1. Fetch freelancer active and completed projects
+      const resProjects = await fetch(
+        `${API_URL}/api/tasks/freelancer-projects?email=${encodeURIComponent(user.email)}`
+      );
+      const projectsData = await resProjects.json();
+
+      if (resProjects.ok) {
+        setProjects(Array.isArray(projectsData) ? projectsData : []);
       } else {
-        setError(data.error || "Failed to load projects");
+        setError(projectsData.error || "Failed to load projects");
+      }
+
+      // 2. Fetch all reviews received by this freelancer
+      try {
+        const resReviews = await fetch(
+          `${API_URL}/api/reviews?email=${encodeURIComponent(user.email)}`
+        );
+        if (resReviews.ok) {
+          const reviewsData = await resReviews.json();
+          setReviews(Array.isArray(reviewsData) ? reviewsData : []);
+        }
+      } catch (reviewErr) {
+        console.error("Failed to fetch project reviews:", reviewErr);
       }
     } catch (err) {
-      setError("An unexpected error occurred");
+      console.error("Fetch projects error:", err);
+      setError("An unexpected error occurred while fetching projects");
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.email, authLoading]);
 
   useEffect(() => {
-    fetchProjects();
-  }, [user]);
+    if (!authLoading) {
+      fetchProjectsAndReviews();
+    }
+  }, [authLoading, fetchProjectsAndReviews]);
 
   // ----------------------------------------------------
   // Handle Deliverable Submission & Mark as Completed
   // ----------------------------------------------------
   const handleDeliverableSubmit = async (e) => {
     e.preventDefault();
-    if (!deliverableUrl) return;
+    if (!deliverableUrl || !selectedProject?._id) return;
 
     setSubmitting(true);
     try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      const res = await fetch(`${API_URL}/api/tasks/tasks/${selectedProject._id}/deliver`, {
+
+      const res = await fetch(`${API_URL}/api/tasks/${selectedProject._id}/submit-deliverable`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deliverableUrl }),
+        body: JSON.stringify({
+          deliverable_url: deliverableUrl,
+          deliverableUrl: deliverableUrl,
+        }),
       });
 
       const data = await res.json();
@@ -60,9 +91,8 @@ export default function ActiveProjectsPage() {
         throw new Error(data.error || "Failed to submit deliverable");
       }
 
-      // Update local state list
-      setProjects(
-        projects.map((p) =>
+      setProjects((prev) =>
+        prev.map((p) =>
           p._id === selectedProject._id
             ? { ...p, status: "completed", deliverable_url: deliverableUrl }
             : p
@@ -79,7 +109,7 @@ export default function ActiveProjectsPage() {
     }
   };
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
@@ -92,7 +122,7 @@ export default function ActiveProjectsPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Active & Completed Projects</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Track in-progress contracts, submit project deliverables, and view completed work.
+          Track in-progress contracts, submit project deliverables, and review client feedback.
         </p>
       </div>
 
@@ -110,61 +140,103 @@ export default function ActiveProjectsPage() {
               No active or completed projects found.
             </div>
           ) : (
-            projects.map((project) => (
-              <div
-                key={project._id}
-                className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-semibold text-gray-900">{project.title}</h3>
-                    <span
-                      className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        project.status === "completed"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-amber-50 text-amber-700"
-                      }`}
-                    >
-                      {project.status === "completed" ? "Completed" : "In Progress"}
-                    </span>
+            projects.map((project) => {
+              // Find matching client review for this project
+              const projectReview = reviews.find(
+                (r) => String(r.task_id || r.taskId) === String(project._id)
+              );
+
+              return (
+                <div
+                  key={project._id}
+                  className="p-6 flex flex-col gap-4 hover:bg-gray-50/40 transition"
+                >
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-semibold text-gray-900">{project.title}</h3>
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            project.status === "completed"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}
+                        >
+                          {project.status === "completed" ? "Completed" : "In Progress"}
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-gray-500">
+                        Client: <span className="font-medium text-gray-700">{project.clientName || project.clientEmail}</span> • Budget: <span className="font-bold text-emerald-600">${project.budget}</span>
+                      </p>
+                    </div>
+
+                    {/* Submission Action Button */}
+                    <div>
+                      {project.status === "in-progress" && (
+                        <button
+                          onClick={() => {
+                            setSelectedProject(project);
+                            setDeliverableUrl("");
+                          }}
+                          className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 transition"
+                        >
+                          Submit Deliverable
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <p className="text-xs text-gray-500">
-                    Client: {project.clientName || project.clientEmail} • Budget: ${project.budget}
-                  </p>
-
-                  {/* Display Deliverable URL if Completed */}
-                  {project.deliverable_url && (
-                    <div className="text-xs text-gray-600">
-                      <span className="font-semibold text-gray-700">Submitted Work: </span>
+                  {/* Submitted Work Link */}
+                  {(project.deliverable_url || project.deliverableUrl) && (
+                    <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 flex items-center gap-2">
+                      <span className="font-semibold text-gray-700">Submitted Deliverable:</span>
                       <a
-                        href={project.deliverable_url}
+                        href={project.deliverable_url || project.deliverableUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-indigo-600 underline hover:text-indigo-800"
+                        className="text-indigo-600 underline hover:text-indigo-800 truncate"
                       >
-                        {project.deliverable_url}
+                        {project.deliverable_url || project.deliverableUrl}
                       </a>
                     </div>
                   )}
-                </div>
 
-                {/* Submission Action Button */}
-                <div className="self-end md:self-center">
-                  {project.status === "in-progress" && (
-                    <button
-                      onClick={() => {
-                        setSelectedProject(project);
-                        setDeliverableUrl("");
-                      }}
-                      className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-700 transition"
-                    >
-                      Submit Deliverable
-                    </button>
+                  {/* ---------------------------------------------------- */}
+                  {/* Contextual Client Review & Feedback Badge / Card */}
+                  {/* ---------------------------------------------------- */}
+                  {project.status === "completed" && (
+                    <div className="mt-1 rounded-xl border border-amber-100 bg-amber-50/40 p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                          <span>Client Feedback</span>
+                        </span>
+
+                        <div className="flex items-center text-amber-500 text-xs font-bold gap-0.5">
+                          {Array.from({ length: 5 }).map((_, starIdx) => (
+                            <span key={starIdx}>
+                              {starIdx < (Number(projectReview?.rating || 5)) ? "★" : "☆"}
+                            </span>
+                          ))}
+                          <span className="ml-1 text-gray-600 font-semibold">
+                            ({Number(projectReview?.rating || 5).toFixed(1)})
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-gray-700 italic">
+                        "{projectReview?.comment || "Task completed successfully and approved with satisfaction!"}"
+                      </p>
+
+                      <div className="text-[11px] text-gray-400 flex justify-between items-center pt-1 border-t border-amber-100/60">
+                        <span>Reviewed by: {projectReview?.reviewer_email || projectReview?.reviewerEmail || project.clientEmail || "Client"}</span>
+                        <span>{projectReview?.createdAt ? new Date(projectReview.createdAt).toLocaleDateString() : "Recently"}</span>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

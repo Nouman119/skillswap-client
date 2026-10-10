@@ -11,15 +11,11 @@ export default function EditProfilePage() {
   // ----------------------------------------------------
   // Handle Freelancer Profile Update
   // ----------------------------------------------------
-
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
 
     const form = e.target;
     const userEmail = (user?.email || (typeof window !== "undefined" ? localStorage.getItem("userEmail") : ""))?.trim();
-
-    console.log("Logged In User Object:", user);
-    console.log("Submitting with Email:", userEmail);
 
     setLoading(true);
     setFeedback({ error: "", success: "" });
@@ -30,25 +26,38 @@ export default function EditProfilePage() {
       return;
     }
 
-const profilePayload = {
+    const skillsRaw = form.skills.value.trim();
+    const skillsArray = skillsRaw.split(",").map((s) => s.trim()).filter(Boolean);
+
+    // সব প্রয়োজনীয় ফিল্ড দিয়ে একটি পরিষ্কার পে-লোড তৈরি করা
+    const profilePayload = {
       userId: user?.id || user?._id,
       email: userEmail,
       name: form.name.value.trim(),
       image: form.image.value.trim(),
-      skills: form.skills.value.trim(),
+      skills: skillsArray,
+      skillsText: skillsRaw,
       bio: form.bio.value.trim(),
       hourlyRate: Number(form.hourlyRate.value) || 0,
     };
 
-    try {
+try {
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      const res = await fetch(`${API_URL}/api/tasks/freelancers/profile`, {
+
+      const res = await fetch(`${API_URL}/api/users/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(profilePayload),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type");
+      let data = {};
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(`Server returned status ${res.status}`);
+      }
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to update profile");

@@ -14,8 +14,11 @@ export default function FreelancerDashboardOverview() {
     pendingProposals: 0,
     acceptedProposals: 0,
     totalEarnings: 0,
+    averageRating: "5.0",
+    totalReviews: 0,
   });
   const [recentProposals, setRecentProposals] = useState([]);
+  const [recentReviews, setRecentReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // ----------------------------------------------------
@@ -38,7 +41,7 @@ export default function FreelancerDashboardOverview() {
   }, [user, authLoading, router]);
 
   // ----------------------------------------------------
-  // Fetch freelancer metrics and recent proposal feed
+  // Fetch freelancer metrics, recent proposals, and client reviews
   // ----------------------------------------------------
   const fetchFreelancerData = useCallback(async () => {
     if (!user?.email) return;
@@ -50,17 +53,46 @@ export default function FreelancerDashboardOverview() {
       const resStats = await fetch(
         `${API_URL}/api/tasks/freelancer-stats?email=${encodeURIComponent(user.email)}`
       );
+      let statsData = {};
       if (resStats.ok) {
-        const statsData = await resStats.json();
-        setStats({
-          totalProposals: statsData.totalProposals || 0,
-          pendingProposals: statsData.pendingProposals || 0,
-          acceptedProposals: statsData.acceptedProposals || 0,
-          totalEarnings: statsData.totalEarnings || 0,
-        });
+        statsData = await resStats.json();
       }
 
-      // 2. Fetch proposals list using freelancer-proposals endpoint
+      // 2. Fetch reviews to compute actual rating and feed
+      let reviewsList = [];
+      try {
+        const resReviews = await fetch(
+          `${API_URL}/api/reviews?email=${encodeURIComponent(user.email)}`
+        );
+        if (resReviews.ok) {
+          const reviewsData = await resReviews.json();
+          reviewsList = Array.isArray(reviewsData) ? reviewsData : [];
+          setRecentReviews(reviewsList.slice(0, 3));
+        }
+      } catch (err) {
+        console.error("Failed to load freelancer reviews:", err);
+      }
+
+      // Compute dynamic average rating
+      const totalReviewsCount = reviewsList.length;
+      const computedAverage =
+        totalReviewsCount > 0
+          ? (
+              reviewsList.reduce((acc, curr) => acc + (Number(curr.rating) || 0), 0) /
+              totalReviewsCount
+            ).toFixed(1)
+          : statsData.rating || "5.0";
+
+      setStats({
+        totalProposals: statsData.totalProposals || 0,
+        pendingProposals: statsData.pendingProposals || 0,
+        acceptedProposals: statsData.acceptedProposals || 0,
+        totalEarnings: statsData.totalEarnings || 0,
+        averageRating: computedAverage,
+        totalReviews: totalReviewsCount,
+      });
+
+      // 3. Fetch proposals list using freelancer-proposals endpoint
       const resProposals = await fetch(
         `${API_URL}/api/tasks/freelancer-proposals?email=${encodeURIComponent(user.email)}`
       );
@@ -112,7 +144,7 @@ export default function FreelancerDashboardOverview() {
             Freelancer Overview
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Welcome back, <span className="font-semibold text-gray-700">{user.name || "Freelancer"}</span>! Track your proposals, project milestones, and total earnings.
+            Welcome back, <span className="font-semibold text-gray-700">{user.name || "Freelancer"}</span>! Track your proposals, project milestones, and client reviews.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -131,8 +163,8 @@ export default function FreelancerDashboardOverview() {
         </div>
       </div>
 
-      {/* 4 Statistics Cards Grid */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 5 Statistics Metric Cards Grid */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
         <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
             Total Proposals
@@ -168,9 +200,79 @@ export default function FreelancerDashboardOverview() {
             ${stats.totalEarnings} USD
           </p>
         </div>
+
+        <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-6 shadow-sm">
+          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">
+            Average Rating
+          </p>
+          <div className="mt-2 flex items-baseline gap-1.5">
+            <span className="text-3xl font-bold text-amber-600">★ {stats.averageRating}</span>
+            <span className="text-xs text-gray-500 font-medium">({stats.totalReviews})</span>
+          </div>
+        </div>
       </div>
 
-      {/* Recent Proposals / Activity Feed */}
+      {/* Recent Client Feedback Widget */}
+      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold text-gray-900">
+              Recent Client Feedback
+            </h3>
+            <span className="rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold">
+              {stats.totalReviews} Reviews
+            </span>
+          </div>
+          <Link
+            href="/dashboard/freelancer/earnings"
+            className="text-xs font-semibold text-indigo-600 hover:underline"
+          >
+            View all feedback →
+          </Link>
+        </div>
+
+        <div className="divide-y divide-gray-100">
+          {recentReviews.length === 0 ? (
+            <div className="p-8 text-center text-sm text-gray-500">
+              No client reviews received yet. Complete delivered tasks to start accumulating client testimonials.
+            </div>
+          ) : (
+            recentReviews.map((rev, index) => (
+              <div
+                key={rev._id || index}
+                className="flex flex-col sm:flex-row sm:items-start sm:justify-between px-6 py-4 gap-3 hover:bg-gray-50/50 transition"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-gray-900">
+                      {rev.reviewer_email || rev.reviewerEmail || "Client"}
+                    </span>
+                    <div className="flex items-center text-amber-500 text-xs font-bold gap-0.5">
+                      {Array.from({ length: 5 }).map((_, starIdx) => (
+                        <span key={starIdx}>
+                          {starIdx < (Number(rev.rating) || 5) ? "★" : "☆"}
+                        </span>
+                      ))}
+                      <span className="ml-1 text-gray-500 font-normal">
+                        ({Number(rev.rating || 5).toFixed(1)})
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600 italic">
+                    "{rev.comment || "Great work, excellent communication and fast delivery!"}"
+                  </p>
+                </div>
+
+                <div className="text-[11px] text-gray-400 sm:text-right shrink-0">
+                  {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : "Recent"}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Recent Proposals Feed */}
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <h3 className="text-base font-semibold text-gray-900">

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
@@ -10,7 +10,6 @@ export const AuthProvider = ({ children }) => {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
 
-  // Initialize user state with cached local storage to prevent instant route guard bounces on browser refresh
   const [user, setUser] = useState(() => {
     if (typeof window !== "undefined") {
       try {
@@ -23,26 +22,68 @@ export const AuthProvider = ({ children }) => {
     return null;
   });
 
-  // Track overall authentication resolution state
   const [loading, setLoading] = useState(true);
 
-  // Sync state when Better Auth resolves server session
+  // ----------------------------------------------------
+  // Sign Out Handler
+  // ----------------------------------------------------
+  const logout = useCallback(async () => {
+    try {
+      await authClient.signOut();
+    } catch (err) {
+      console.error("Sign out error:", err);
+    } finally {
+      setUser(null);
+      localStorage.removeItem("skillswap_user");
+      router.push("/login");
+    }
+  }, [router]);
+
+  // ----------------------------------------------------
+  // Verify User Block Status from Database
+  // ----------------------------------------------------
+  const verifyBlockStatus = useCallback(async (email) => {
+    if (!email) return false;
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      const res = await fetch(`${API_URL}/api/users/${encodeURIComponent(email)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.isBlocked || data.status === "blocked") {
+          alert("Your account has been suspended by administration.");
+          await logout();
+          return true; // Is blocked
+        }
+      }
+    } catch (e) {
+      console.error("Error checking block status:", e);
+    }
+    return false;
+  }, [logout]);
+
+  // Sync state when session resolves and verify block status
   useEffect(() => {
     if (isPending) {
       setLoading(true);
       return;
     }
 
-    if (session?.user) {
-      setUser(session.user);
-      localStorage.setItem("skillswap_user", JSON.stringify(session.user));
-    } else {
-      setUser(null);
-      localStorage.removeItem("skillswap_user");
+    async function handleSession() {
+      if (session?.user) {
+        const isBlocked = await verifyBlockStatus(session.user.email);
+        if (!isBlocked) {
+          setUser(session.user);
+          localStorage.setItem("skillswap_user", JSON.stringify(session.user));
+        }
+      } else {
+        setUser(null);
+        localStorage.removeItem("skillswap_user");
+      }
+      setLoading(false);
     }
 
-    setLoading(false);
-  }, [session, isPending]);
+    handleSession();
+  }, [session, isPending, verifyBlockStatus]);
 
   // ----------------------------------------------------
   // Role-based routing helper
@@ -62,6 +103,23 @@ export const AuthProvider = ({ children }) => {
   // Better Auth: Email & Password Sign In
   // ----------------------------------------------------
   const login = async (email, password) => {
+    // 1. First check if user is blocked in database
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+    try {
+      const checkRes = await fetch(`${API_URL}/api/users/${encodeURIComponent(email)}`);
+      if (checkRes.ok) {
+        const userData = await checkRes.json();
+        if (userData.isBlocked || userData.status === "blocked") {
+          throw new Error("Your account has been suspended by administration");
+        }
+      }
+    } catch (err) {
+      if (err.message.includes("suspended")) {
+        throw err;
+      }
+    }
+
+    // 2. Perform sign in via Better Auth
     const { data, error } = await authClient.signIn.email({
       email,
       password,
@@ -118,21 +176,6 @@ export const AuthProvider = ({ children }) => {
       handleRoleRedirect(newUser.role || role || "client");
     }
     return newUser;
-  };
-
-  // ----------------------------------------------------
-  // Sign Out Handler
-  // ----------------------------------------------------
-  const logout = async () => {
-    try {
-      await authClient.signOut();
-    } catch (err) {
-      console.error("Sign out error:", err);
-    } finally {
-      setUser(null);
-      localStorage.removeItem("skillswap_user");
-      router.push("/login");
-    }
   };
 
   return (

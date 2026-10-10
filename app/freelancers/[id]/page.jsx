@@ -7,14 +7,15 @@ import Link from "next/link";
 export default function FreelancerPublicProfilePage() {
   const { id } = useParams();
   const [profile, setProfile] = useState(null);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   // ----------------------------------------------------
-  // Fetch freelancer public details by ID
+  // Fetch freelancer public details by ID & Fetch Reviews
   // ----------------------------------------------------
   useEffect(() => {
-    async function fetchFreelancer() {
+    async function fetchFreelancerAndReviews() {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
         const res = await fetch(`${API_URL}/api/tasks/freelancers/${id}`);
@@ -22,6 +23,20 @@ export default function FreelancerPublicProfilePage() {
 
         if (res.ok) {
           setProfile(data);
+
+          if (data?.email) {
+            try {
+              const reviewsRes = await fetch(
+                `${API_URL}/api/reviews?revieweeEmail=${encodeURIComponent(data.email)}`
+              );
+              if (reviewsRes.ok) {
+                const reviewsData = await reviewsRes.json();
+                setReviews(Array.isArray(reviewsData) ? reviewsData : []);
+              }
+            } catch (err) {
+              console.error("Failed to load reviews:", err);
+            }
+          }
         } else {
           setError(data.error || "Profile not found");
         }
@@ -33,7 +48,7 @@ export default function FreelancerPublicProfilePage() {
     }
 
     if (id) {
-      fetchFreelancer();
+      fetchFreelancerAndReviews();
     }
   }, [id]);
 
@@ -64,6 +79,15 @@ export default function FreelancerPublicProfilePage() {
     : typeof profile.skills === "string"
     ? profile.skills.split(",").map((s) => s.trim()).filter(Boolean)
     : ["General Specialist"];
+
+  const totalReviewsCount = reviews.length;
+  const averageRating =
+    totalReviewsCount > 0
+      ? (
+          reviews.reduce((acc, curr) => acc + (Number(curr.rating) || 0), 0) /
+          totalReviewsCount
+        ).toFixed(1)
+      : profile.rating || "5.0";
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 min-h-screen">
@@ -103,18 +127,23 @@ export default function FreelancerPublicProfilePage() {
               </div>
               <p className="text-xs text-gray-500 mt-1">{profile.email}</p>
               
-              {/* Rating and Completed Metrics */}
+              {/* Dynamic Rating and Completed Metrics */}
               <div className="mt-3 flex items-center gap-3 text-xs text-gray-600">
                 <span className="flex items-center text-amber-500 font-semibold gap-1">
-                  ★ {profile.rating || "5.0"}
+                  ★ {averageRating}
+                </span>
+                <span className="text-gray-400">
+                  ({totalReviewsCount} {totalReviewsCount === 1 ? "review" : "reviews"})
                 </span>
                 <span className="text-gray-300">•</span>
-                <span><strong>{profile.completedJobs || 0}</strong> projects completed</span>
+                <span>
+                  <strong>{profile.completedJobs || (totalReviewsCount > 0 ? totalReviewsCount : 0)}</strong> projects completed
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 text-left sm:text-right min-w-[170px]">
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 text-left sm:text-right min-w-42.5">
             <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Hourly Rate</p>
             <p className="text-2xl font-bold text-emerald-700">
               ${profile.hourlyRate || 25} <span className="text-xs font-normal text-emerald-600">/ hr</span>
@@ -125,7 +154,7 @@ export default function FreelancerPublicProfilePage() {
 
       {/* Details Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Bio & Experience Section */}
+        {/* Bio, Experience & Reviews Section */}
         <div className="md:col-span-2 space-y-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-3">
             <h2 className="text-base font-semibold text-gray-900">About the Specialist</h2>
@@ -139,6 +168,59 @@ export default function FreelancerPublicProfilePage() {
             <p className="text-xs text-gray-500 leading-relaxed">
               Successfully executed milestones across enterprise architectures, focusing on scalable clean components and delivery assurance.
             </p>
+          </div>
+
+          {/* ---------------------------------------------------- */}
+          {/* Client Reviews & Feedback List Section */}
+          {/* ---------------------------------------------------- */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h2 className="text-base font-semibold text-gray-900">
+                Client Reviews & Ratings
+              </h2>
+              <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
+                {totalReviewsCount} Feedback
+              </span>
+            </div>
+
+            {reviews.length === 0 ? (
+              <p className="text-xs text-gray-400 py-3 text-center">
+                No client reviews received yet.
+              </p>
+            ) : (
+              <div className="space-y-4 pt-1">
+                {reviews.map((rev, idx) => (
+                  <div
+                    key={rev._id || idx}
+                    className="p-4 rounded-xl border border-gray-100 bg-gray-50/60 space-y-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-800">
+                        {rev.reviewer_email || rev.reviewerEmail || "Client"}
+                      </span>
+                      <div className="flex items-center text-amber-500 text-xs font-bold gap-0.5">
+                        {Array.from({ length: 5 }).map((_, starIndex) => (
+                          <span key={starIndex}>
+                            {starIndex < (Number(rev.rating) || 5) ? "★" : "☆"}
+                          </span>
+                        ))}
+                        <span className="ml-1 text-gray-600 font-normal">
+                          ({rev.rating || 5}.0)
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      "{rev.comment || "Great collaboration and quick delivery!"}"
+                    </p>
+                    {rev.created_at && (
+                      <p className="text-[10px] text-gray-400 text-right">
+                        {new Date(rev.created_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

@@ -37,10 +37,38 @@ export default function ManageProposalsPage() {
   }, [user]);
 
   // ----------------------------------------------------
-  // Handle Accept Proposal (Redirects to Stripe Dummy Checkout)
+  // Handle Accept Proposal & Trigger Stripe Checkout
   // ----------------------------------------------------
-  const handleAcceptProposal = (proposalId, amount) => {
-    router.push(`/payment/checkout?proposalId=${proposalId}&amount=${amount}`);
+  const handleAcceptProposal = async (proposal) => {
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+      
+      const response = await fetch(`${API_URL}/api/tasks/create-checkout-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          taskId: proposal.taskId,
+          amount: proposal.budgetPrice,
+          taskTitle: proposal.taskTitle || "SkillSwap Micro-Task",
+          clientEmail: proposal.clientEmail,
+          freelancerEmail: proposal.freelancerEmail,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.url) {
+        // Redirect to Stripe Checkout page
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "পেমেন্ট সেশন তৈরি করতে ব্যর্থ হয়েছে।");
+      }
+    } catch (error) {
+      console.error("Payment trigger error:", error);
+      alert("নেটওয়ার্ক সমস্যা দেখা দিয়েছে।");
+    }
   };
 
   // ----------------------------------------------------
@@ -111,7 +139,7 @@ export default function ManageProposalsPage() {
                 {proposal.status === 'pending' && (
                   <div className="flex items-center gap-2 self-end md:self-center">
                     <button
-                      onClick={() => handleAcceptProposal(proposal._id, proposal.budgetPrice)}
+                      onClick={() => handleAcceptProposal(proposal)}
                       className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 transition"
                     >
                       Accept & Pay

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 
-export default function SubmitDeliverablePage() {
+function SubmitDeliverableContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const taskId = searchParams.get("taskId");
@@ -159,5 +159,19 @@ export default function SubmitDeliverablePage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SubmitDeliverablePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+        </div>
+      }
+    >
+      <SubmitDeliverableContent />
+    </Suspense>
   );
 }
