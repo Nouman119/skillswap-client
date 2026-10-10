@@ -46,13 +46,15 @@ export default function LoginPage() {
     }
   };
 
-  // Google OAuth sign-in flow
+// Google OAuth sign-in flow
   const handleGoogleSignIn = async () => {
     setError("");
     setSubmitting(true);
     try {
-      const loggedUser = await loginWithGoogle();
-      handleRoleRedirect(loggedUser?.role);
+      // Pass the frontend callback URL explicitly to prevent redirecting to backend root
+      await loginWithGoogle({
+        callbackURL: `${window.location.origin}/dashboard/client`, // অথবা আপনার প্রয়োজনমতো পাথ
+      });
     } catch (err) {
       setError(err.message || "Google authentication failed.");
       setSubmitting(false);

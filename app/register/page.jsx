@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 export default function RegisterPage() {
   const router = useRouter();
   const { register, loginWithGoogle } = useAuth();
+  
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -17,6 +18,18 @@ export default function RegisterPage() {
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Google Sign-up handler
+  const handleGoogleSignUp = async () => {
+    setError("");
+    try {
+      await loginWithGoogle({
+        callbackURL: `${window.location.origin}/dashboard/client`,
+      });
+    } catch (err) {
+      setError(err.message || "Google authentication failed.");
+    }
+  };
 
   // Validate password strength criteria
   const validatePassword = (pwd) => {
@@ -52,7 +65,6 @@ export default function RegisterPage() {
     try {
       const createdUser = await register(formData);
       
-      // Determine redirection target by registered role
       const userRole = (createdUser?.role || formData.role).toLowerCase();
       if (userRole === "freelancer") {
         router.push("/dashboard/freelancer");
@@ -84,7 +96,7 @@ export default function RegisterPage() {
 
         <button
           type="button"
-          onClick={loginWithGoogle}
+          onClick={handleGoogleSignUp}
           className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition"
         >
           <svg className="h-4 w-4" viewBox="0 0 24 24">
