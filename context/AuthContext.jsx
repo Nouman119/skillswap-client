@@ -141,10 +141,10 @@ export const AuthProvider = ({ children }) => {
   // ----------------------------------------------------
   // Better Auth: Real Google OAuth Sign In
   // ----------------------------------------------------
-  const loginWithGoogle = async () => {
+const loginWithGoogle = async () => {
     const { error } = await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/dashboard/client",
+      callbackURL: "https://skillswap-client-five.vercel.app/dashboard/client", // Absolute URL to force redirect back to frontend
       prompt: "select_account",
     });
 
